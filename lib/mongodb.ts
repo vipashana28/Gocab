@@ -19,7 +19,7 @@ if (!cached) {
   cached = (global as any).mongoose = { conn: null, promise: null }
 }
 
-async function connectDB() {
+export async function connectToDatabase() {
   if (cached.conn) {
     return cached.conn
   }
@@ -30,8 +30,11 @@ async function connectDB() {
     }
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      console.log('Connected to MongoDB')
-      return mongoose
+      console.log('✅ Successfully connected to MongoDB Atlas.')
+      return {
+        client: mongoose.connection.getClient(),
+        db: mongoose.connection.db
+      }
     })
   }
 
@@ -39,10 +42,9 @@ async function connectDB() {
     cached.conn = await cached.promise
   } catch (e) {
     cached.promise = null
+    console.error('❌ Failed to connect to MongoDB Atlas.', e)
     throw e
   }
 
   return cached.conn
 }
-
-export default connectDB

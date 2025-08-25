@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import connectDB from '@/lib/mongodb'
+import { connectToDatabase } from '@/lib/mongodb'
 import { Ride, Driver, User } from '@/lib/models'
 
 export async function GET(
@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: { rideId: string } }
 ) {
   try {
-    await connectDB()
+    await connectToDatabase()
     
     const { rideId } = params
 
@@ -59,7 +59,7 @@ export async function PATCH(
   { params }: { params: { rideId: string } }
 ) {
   try {
-    await connectDB()
+    await connectToDatabase()
     
     const { rideId } = params
     const body = await request.json()
@@ -204,7 +204,7 @@ export async function DELETE(
   { params }: { params: { rideId: string } }
 ) {
   try {
-    await connectDB()
+    await connectToDatabase()
     
     const { rideId } = params
 

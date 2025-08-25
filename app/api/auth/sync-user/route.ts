@@ -1,34 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
-import connectDB from '@/lib/mongodb'
+import { connectToDatabase } from '@/lib/mongodb'
 import { User } from '@/lib/models'
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB()
+    await connectToDatabase()
     
     const body = await request.json()
-    const { civicId, email, walletAddress, firstName, lastName, profilePicture } = body
+    const { googleId, email, firstName, lastName, profilePicture } = body
 
-    if (!civicId || !email) {
+    if (!googleId || !email) {
       return NextResponse.json(
         { 
           success: false, 
           error: { 
             code: 'MISSING_REQUIRED_FIELDS', 
-            message: 'Civic ID and email are required' 
+            message: 'Google ID and email are required' 
           } 
         },
         { status: 400 }
       )
     }
 
-    // Try to find existing user by civicId first
-    let user = await User.findOne({ civicId })
+    // Try to find existing user by googleId first
+    let user = await User.findOne({ googleId })
 
     if (user) {
-      // Update existing user with latest info from Civic
+      // Update existing user with latest info from Google
       user.email = email
-      user.walletAddress = walletAddress
       if (firstName && firstName !== 'User') user.firstName = firstName
       if (lastName) user.lastName = lastName
       if (profilePicture) user.profilePicture = profilePicture
@@ -37,13 +36,12 @@ export async function POST(request: NextRequest) {
       user.lastActive = new Date()
       
       await user.save()
-      console.log('Updated existing user:', user.civicId)
+      console.log('Updated existing user:', user.googleId)
     } else {
       // Create new user
       user = new User({
-        civicId,
+        googleId,
         email,
-        walletAddress,
         firstName: firstName || 'User',
         lastName: lastName || '',
         profilePicture,
@@ -61,7 +59,7 @@ export async function POST(request: NextRequest) {
       })
 
       await user.save()
-      console.log('Created new user:', user.civicId)
+      console.log('Created new user:', user.googleId)
     }
 
     // Return user data (without sensitive information)

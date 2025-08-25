@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useGoCabAuth } from '@/lib/auth/use-gocab-auth'
+import { useGoCabAuth } from '@/lib/auth/use-gocab-auth-google'
 import { useRouter } from 'next/navigation'
 
 interface Event {
@@ -52,34 +52,181 @@ export default function EventsPage() {
     'music', 'sports', 'conference', 'festival', 'community', 'food', 'arts', 'technology', 'other'
   ]
 
-  // Fetch events
-  useEffect(() => {
-    const fetchEvents = async () => {
-      setIsLoading(true)
-      
-      try {
-        const params = new URLSearchParams()
-        if (selectedCategory) params.append('category', selectedCategory)
-        if (showUpcomingOnly) params.append('upcoming', 'true')
-        if (searchTerm) params.append('search', searchTerm)
-        params.append('limit', '50')
-        
-        const response = await fetch(`/api/events?${params.toString()}`)
-        const data = await response.json()
-        
-        if (data.success) {
-          setEvents(data.data)
-        } else {
-          console.error('Failed to fetch events:', data.error)
-        }
-      } catch (error) {
-        console.error('Error fetching events:', error)
-      } finally {
-        setIsLoading(false)
-      }
+  // Mock events data for demo
+  const mockEvents: Event[] = [
+    {
+      _id: '1',
+      eventId: 'tech-conf-2024',
+      title: 'Tech Innovation Conference 2024',
+      description: 'Join industry leaders for the biggest tech conference of the year. Featuring talks on AI, blockchain, and the future of technology.',
+      shortDescription: 'Premier tech conference featuring AI and blockchain leaders.',
+      category: 'technology',
+      startDate: '2024-09-15T09:00:00Z',
+      endDate: '2024-09-15T17:00:00Z',
+      venue: {
+        name: 'San Francisco Convention Center',
+        address: '747 Howard St, San Francisco, CA 94103',
+        coordinates: { latitude: 37.7842, longitude: -122.4016 }
+      },
+      images: {
+        thumbnail: 'https://via.placeholder.com/300x200?text=Tech+Conference',
+        banner: 'https://via.placeholder.com/800x400?text=Tech+Innovation+2024'
+      },
+      organizer: {
+        name: 'TechForward Inc'
+      },
+      ticketing: {
+        isTicketed: true,
+        ticketTypes: [
+          { name: 'General Admission', price: 299, benefits: ['Conference Access', 'Lunch', 'Networking'] },
+          { name: 'VIP', price: 599, benefits: ['All General Benefits', 'VIP Lounge', 'Meet & Greet'] }
+        ]
+      },
+      tags: ['AI', 'Technology', 'Innovation', 'Networking'],
+      ageRestriction: '18+',
+      isOutdoor: false,
+      priceRange: '$199-$599',
+      isUpcoming: true,
+      isPast: false,
+      isHappeningNow: false
+    },
+    {
+      _id: '2',
+      eventId: 'food-festival-2024',
+      title: 'San Francisco Food & Wine Festival',
+      description: 'Celebrate the best of Bay Area cuisine with local chefs, wineries, and food trucks. Live music and family-friendly activities.',
+      shortDescription: 'Celebrate Bay Area cuisine with local chefs and wineries.',
+      category: 'food',
+      startDate: '2024-09-22T11:00:00Z',
+      endDate: '2024-09-22T17:00:00Z',
+      venue: {
+        name: 'Golden Gate Park',
+        address: 'Golden Gate Park, San Francisco, CA',
+        coordinates: { latitude: 37.7694, longitude: -122.4862 }
+      },
+      images: {
+        thumbnail: 'https://via.placeholder.com/300x200?text=Food+Festival',
+        banner: 'https://via.placeholder.com/800x400?text=SF+Food+Festival'
+      },
+      organizer: {
+        name: 'SF Food Events'
+      },
+      ticketing: {
+        isTicketed: true,
+        ticketTypes: [
+          { name: 'Adult', price: 45, benefits: ['Food Tastings', 'Entertainment', 'Activities'] },
+          { name: 'Child (5-12)', price: 15, benefits: ['Kids Activities', 'Food Tastings'] }
+        ]
+      },
+      tags: ['Food', 'Wine', 'Local', 'Family-Friendly'],
+      ageRestriction: 'All Ages',
+      isOutdoor: true,
+      priceRange: '$15-$45',
+      isUpcoming: true,
+      isPast: false,
+      isHappeningNow: false
+    },
+    {
+      _id: '3',
+      eventId: 'jazz-night-2024',
+      title: 'Jazz Under the Stars',
+      description: 'An intimate evening of smooth jazz featuring local and international artists. Bring a blanket and enjoy music under the stars.',
+      shortDescription: 'Intimate evening of smooth jazz under the stars.',
+      category: 'music',
+      startDate: '2024-09-28T19:00:00Z',
+      endDate: '2024-09-28T22:00:00Z',
+      venue: {
+        name: 'Yerba Buena Gardens',
+        address: '750 Howard St, San Francisco, CA 94103',
+        coordinates: { latitude: 37.7854, longitude: -122.4005 }
+      },
+      images: {
+        thumbnail: 'https://via.placeholder.com/300x200?text=Jazz+Night',
+        banner: 'https://via.placeholder.com/800x400?text=Jazz+Under+Stars'
+      },
+      organizer: {
+        name: 'SF Jazz Collective'
+      },
+      ticketing: {
+        isTicketed: false,
+        ticketTypes: []
+      },
+      tags: ['Jazz', 'Music', 'Outdoor', 'Free'],
+      ageRestriction: 'All Ages',
+      isOutdoor: true,
+      priceRange: 'Free',
+      isUpcoming: true,
+      isPast: false,
+      isHappeningNow: false
+    },
+    {
+      _id: '4',
+      eventId: 'startup-pitch-2024',
+      title: 'Startup Pitch Competition',
+      description: 'Watch innovative startups pitch their ideas to top VCs and investors. Network with entrepreneurs and industry experts.',
+      shortDescription: 'Startup pitches to VCs and investors with networking.',
+      category: 'conference',
+      startDate: '2024-10-05T14:00:00Z',
+      endDate: '2024-10-05T18:00:00Z',
+      venue: {
+        name: 'SOMA Innovation Hub',
+        address: '123 Market St, San Francisco, CA 94105',
+        coordinates: { latitude: 37.7749, longitude: -122.4194 }
+      },
+      images: {
+        thumbnail: 'https://via.placeholder.com/300x200?text=Startup+Pitch',
+        banner: 'https://via.placeholder.com/800x400?text=Pitch+Competition'
+      },
+      organizer: {
+        name: 'Bay Area Entrepreneurs'
+      },
+      ticketing: {
+        isTicketed: true,
+        ticketTypes: [
+          { name: 'General', price: 75, benefits: ['Event Access', 'Networking', 'Refreshments'] },
+          { name: 'Investor', price: 150, benefits: ['All General Benefits', 'VIP Networking', 'Pitch Deck Access'] }
+        ]
+      },
+      tags: ['Startup', 'Pitch', 'Investors', 'Networking'],
+      ageRestriction: '21+',
+      isOutdoor: false,
+      priceRange: '$75-$150',
+      isUpcoming: true,
+      isPast: false,
+      isHappeningNow: false
     }
+  ]
 
-    fetchEvents()
+  // Use mock events instead of API call for demo
+  useEffect(() => {
+    setIsLoading(true)
+    
+    // Simulate API delay
+    setTimeout(() => {
+      let filteredEvents = mockEvents
+      
+      // Apply filters
+      if (selectedCategory) {
+        filteredEvents = filteredEvents.filter(event => event.category === selectedCategory)
+      }
+      
+      if (showUpcomingOnly) {
+        const now = new Date()
+        filteredEvents = filteredEvents.filter(event => new Date(event.startDate) > now)
+      }
+      
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase()
+        filteredEvents = filteredEvents.filter(event => 
+          event.title.toLowerCase().includes(term) ||
+          event.description.toLowerCase().includes(term) ||
+          event.venue.name.toLowerCase().includes(term)
+        )
+      }
+      
+      setEvents(filteredEvents)
+      setIsLoading(false)
+    }, 500)
   }, [selectedCategory, showUpcomingOnly, searchTerm])
 
   const handleBookRideToEvent = (event: Event) => {

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import connectDB from '@/lib/mongodb'
+import { connectToDatabase } from '@/lib/mongodb'
 import { Ride, Driver, User } from '@/lib/models'
 import mongoose from 'mongoose'
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB()
+    await connectToDatabase()
     
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB()
+    await connectToDatabase()
     
     const body = await request.json()
     const {

@@ -1,10 +1,9 @@
 import mongoose from 'mongoose'
 
 export interface IUser extends mongoose.Document {
-  // Civic Auth Data
-  civicId: string
+  // Google Auth Data
+  googleId: string
   email: string
-  walletAddress?: string
   
   // Profile Information
   firstName: string
@@ -49,8 +48,8 @@ export interface IUser extends mongoose.Document {
 }
 
 const userSchema = new mongoose.Schema<IUser>({
-  // Civic Auth Data
-  civicId: {
+  // Google Auth Data
+  googleId: {
     type: String,
     required: true,
     unique: true,
@@ -62,11 +61,6 @@ const userSchema = new mongoose.Schema<IUser>({
     unique: true,
     lowercase: true,
     trim: true
-  },
-  walletAddress: {
-    type: String,
-    sparse: true,
-    index: true
   },
   
   // Profile Information

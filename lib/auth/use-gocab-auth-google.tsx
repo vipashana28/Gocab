@@ -1,24 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useUser } from '@civic/auth/react'
+import { useSession, signIn as nextAuthSignIn, signOut as nextAuthSignOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-
-// Civic Auth user interface matches BaseUser from @civic/auth
-interface CivicUser {
-  id: string
-  email?: string
-  username?: string
-  name?: string
-  given_name?: string
-  family_name?: string
-  picture?: string
-  updated_at?: Date
-}
 
 export interface GoCabUser {
   id: string
-  civicId: string
+  googleId: string
   email: string
   firstName: string
   lastName: string
@@ -32,47 +20,36 @@ export interface GoCabUser {
 }
 
 export function useGoCabAuth() {
+  const { data: session, status } = useSession()
   const router = useRouter()
-  
-  // Use REAL Civic Auth hooks from the SDK
-  const { 
-    user: civicUser, 
-    isLoading: authLoading, 
-    authStatus,
-    error: civicError,
-    signIn: civicSignIn, 
-    signOut: civicSignOut
-  } = useUser()
-  
-  // Determine if authenticated based on authStatus
-  const isAuthenticated = authStatus === 'authenticated'
   
   const [user, setUser] = useState<GoCabUser | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Sync user data when Civic auth state changes
+  // Check authentication: either Google OAuth or demo user
+  const isAuthenticated = (status === 'authenticated' && !!user) || (!!user && user.id.startsWith('demo-'))
+
+  // Sync user data when Google auth state changes
   useEffect(() => {
     const syncUserData = async () => {
-      if (isAuthenticated && civicUser && !user) {
+      if (status === 'authenticated' && session?.user && !user) {
         setIsLoading(true)
         setError(null)
         
         try {
-          // Try to get existing user from our database
           const response = await fetch('/api/auth/sync-user', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              civicId: civicUser.id,
-              email: civicUser.email || `user_${civicUser.id}@gocab.app`,
-              walletAddress: null, // No wallet address in base Civic Auth
-              // Extract additional fields if available from Civic user
-              firstName: civicUser.given_name || civicUser.name?.split(' ')[0] || 'User',
-              lastName: civicUser.family_name || civicUser.name?.split(' ').slice(1).join(' ') || '',
-              profilePicture: civicUser.picture,
+              // Use the proper Google user ID from the session
+              googleId: (session.user as any).googleId || (session.user as any).id || session.user.email,
+              email: session.user.email || '',
+              firstName: session.user.name?.split(' ')[0] || 'User',
+              lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
+              profilePicture: session.user.image,
             }),
           })
 
@@ -80,10 +57,6 @@ export function useGoCabAuth() {
             const userData = await response.json()
             setUser(userData.data)
             console.log('User synced with GoCab database:', userData.data)
-            
-            // ✅ REDIRECT TO DASHBOARD AFTER SUCCESSFUL AUTH
-            console.log('🎯 Redirecting to dashboard...')
-            router.push('/dashboard')
           } else {
             const errorData = await response.json()
             setError(errorData.error?.message || 'Failed to sync user data')
@@ -94,7 +67,7 @@ export function useGoCabAuth() {
         } finally {
           setIsLoading(false)
         }
-      } else if (!isAuthenticated && user) {
+      } else if (status === 'unauthenticated' && user) {
         // Clear user data when signed out
         setUser(null)
         setError(null)
@@ -102,25 +75,24 @@ export function useGoCabAuth() {
     }
 
     syncUserData()
-  }, [isAuthenticated, civicUser, user, router])
+  }, [status, session, user])
 
   const handleSignIn = async () => {
     setError(null)
     try {
-      console.log('🚀 Starting Civic Auth sign in...')
-      // Use the proper Civic Auth signIn function
-      await civicSignIn()
+      console.log('🚀 Starting Google Auth sign in...')
+      await nextAuthSignIn('google', { callbackUrl: '/dashboard' })
     } catch (err) {
       console.error('Sign in error:', err)
-      setError('Failed to sign in with Civic')
+      setError('Failed to sign in with Google')
     }
   }
 
   const handleSignOut = async () => {
     setError(null)
     try {
-      console.log('👋 Signing out of Civic Auth...')
-      await civicSignOut()
+      console.log('👋 Signing out...')
+      await nextAuthSignOut({ callbackUrl: '/' })
       setUser(null)
     } catch (err) {
       console.error('Sign out error:', err)
@@ -128,8 +100,37 @@ export function useGoCabAuth() {
     }
   }
 
+  const demoSignIn = () => {
+    console.log('🚀 Performing demo sign in...')
+    setIsLoading(true)
+    
+    const demoUser: GoCabUser = {
+      id: 'demo-user-123',
+      googleId: 'google-demo-id-123',
+      email: 'demo.user@gocab.app',
+      firstName: 'Demo',
+      lastName: 'User',
+      phone: '555-123-4567',
+      profilePicture: `https://i.pravatar.cc/150?u=demo-user-123`,
+      isSponsored: true,
+      totalRides: 42,
+      totalCarbonSaved: 15.7,
+      memberSince: new Date('2023-01-15T10:00:00Z'),
+      isVerified: true,
+    }
+
+    setUser(demoUser)
+    console.log('✅ Demo user created:', demoUser)
+    
+    setTimeout(() => {
+      setIsLoading(false)
+      console.log('🎯 Redirecting to dashboard...')
+      router.push('/dashboard')
+    }, 200)
+  }
+
   const updateLastActive = async () => {
-    if (user) {
+    if (user && !user.id.startsWith('demo-')) {
       try {
         await fetch('/api/auth/update-activity', {
           method: 'POST',
@@ -146,15 +147,15 @@ export function useGoCabAuth() {
 
   return {
     // Auth state
-    isAuthenticated: isAuthenticated && !!user,
+    isAuthenticated,
     user,
-    civicUser,
-    isLoading: authLoading || isLoading,
-    error: error || (civicError?.message ?? null),
+    isLoading: status === 'loading' || isLoading,
+    error,
     
     // Auth actions
     signIn: handleSignIn,
     signOut: handleSignOut,
+    demoSignIn,
     updateLastActive,
     
     // Utilities
