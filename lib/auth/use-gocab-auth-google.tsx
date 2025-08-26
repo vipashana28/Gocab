@@ -28,7 +28,7 @@ export function useGoCabAuth() {
   const [error, setError] = useState<string | null>(null)
 
   // Check authentication: either Google OAuth or demo user
-  const isAuthenticated = (status === 'authenticated' && !!user) || (!!user && user.id.startsWith('demo-'))
+  const isAuthenticated = (status === 'authenticated' && !!user) || (!!user && user.id === '507f1f77bcf86cd799439011')
 
   // Sync user data when Google auth state changes
   useEffect(() => {
@@ -75,7 +75,7 @@ export function useGoCabAuth() {
     }
 
     syncUserData()
-  }, [status, session, user])
+  }, [status, session]) // Remove user from dependencies to prevent loops
 
   const handleSignIn = async () => {
     setError(null)
@@ -105,7 +105,7 @@ export function useGoCabAuth() {
     setIsLoading(true)
     
     const demoUser: GoCabUser = {
-      id: 'demo-user-123',
+      id: '507f1f77bcf86cd799439011', // Valid MongoDB ObjectId format
       googleId: 'google-demo-id-123',
       email: 'demo.user@gocab.app',
       firstName: 'Demo',
@@ -130,7 +130,7 @@ export function useGoCabAuth() {
   }
 
   const updateLastActive = async () => {
-    if (user && !user.id.startsWith('demo-')) {
+    if (user && user.id !== '507f1f77bcf86cd799439011') {
       try {
         await fetch('/api/auth/update-activity', {
           method: 'POST',

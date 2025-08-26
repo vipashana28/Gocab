@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
           shareLocation: true,
         },
         isActive: true,
-        isVerified: false, // Will be verified through Civic auth process
+        isVerified: false, // Will be verified through Google auth process
       })
 
       await user.save()
@@ -65,7 +65,6 @@ export async function POST(request: NextRequest) {
     // Return user data (without sensitive information)
     const userData = {
       id: user._id,
-      civicId: user.civicId,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,

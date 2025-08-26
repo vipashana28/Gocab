@@ -15,9 +15,10 @@ export async function GET(request: NextRequest) {
 
     let query: any = {}
     
-    // Filter by user
+    // Filter by user (allow demo user)
     if (userId) {
-      if (!mongoose.Types.ObjectId.isValid(userId)) {
+      const isDemoUser = userId === '507f1f77bcf86cd799439011'
+      if (!isDemoUser && !mongoose.Types.ObjectId.isValid(userId)) {
         return NextResponse.json(
           { 
             success: false, 
@@ -128,19 +129,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate user exists
-    const user = await User.findById(userId)
-    if (!user) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'USER_NOT_FOUND', 
-            message: 'User not found' 
-          } 
-        },
-        { status: 404 }
-      )
+    // Validate user exists (skip for demo user)
+    const isDemoUser = userId === '507f1f77bcf86cd799439011'
+    let user = null
+    
+    if (!isDemoUser) {
+      user = await User.findById(userId)
+      if (!user) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: { 
+              code: 'USER_NOT_FOUND', 
+              message: 'User not found' 
+            } 
+          },
+          { status: 404 }
+        )
+      }
     }
 
     // Check if user has any active rides
@@ -150,12 +156,30 @@ export async function POST(request: NextRequest) {
     })
     
     if (activeRide) {
+      // Populate the active ride with driver info for better error response
+      await activeRide.populate('driverId', 'firstName lastName phone vehicle')
+      
       return NextResponse.json(
         { 
           success: false, 
           error: { 
             code: 'ACTIVE_RIDE_EXISTS', 
-            message: 'User already has an active ride' 
+            message: 'User already has an active ride',
+            activeRide: {
+              id: activeRide._id,
+              rideId: activeRide.rideId,
+              pickupCode: activeRide.pickupCode,
+              status: activeRide.status,
+              statusDisplay: activeRide.statusDisplay || 'Active Ride',
+              pickup: activeRide.pickup,
+              destination: activeRide.destination,
+              driverContact: activeRide.driverContact,
+              driverLocation: activeRide.driverLocation,
+              pricing: activeRide.pricing,
+              carbonFootprint: activeRide.carbonFootprint,
+              requestedAt: activeRide.requestedAt,
+              estimatedArrival: activeRide.estimatedArrival
+            }
           } 
         },
         { status: 400 }

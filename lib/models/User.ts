@@ -71,7 +71,8 @@ const userSchema = new mongoose.Schema<IUser>({
   },
   lastName: {
     type: String,
-    required: true,
+    required: false,
+    default: '',
     trim: true
   },
   phone: {
