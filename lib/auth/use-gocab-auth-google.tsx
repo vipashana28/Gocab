@@ -25,8 +25,8 @@ export function useGoCabAuth() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Check authentication: either Google OAuth or demo user
-  const isAuthenticated = (status === 'authenticated' && !!user) || (!!user && user.id === '507f1f77bcf86cd799439011')
+  // Check authentication: Google OAuth only
+  const isAuthenticated = status === 'authenticated' && !!user
 
   // Sync user data when Google auth state changes
   useEffect(() => {
@@ -100,37 +100,10 @@ export function useGoCabAuth() {
     }
   }
 
-  const demoSignIn = () => {
-    console.log('🚀 Performing demo sign in...')
-    setIsLoading(true)
-    
-    const demoUser: GoCabUser = {
-      id: '507f1f77bcf86cd799439011', // Valid MongoDB ObjectId format
-      googleId: 'google-demo-id-123',
-      email: 'demo.user@gocab.app',
-      firstName: 'Demo',
-      lastName: 'User',
-      phone: '555-123-4567',
-      profilePicture: `https://i.pravatar.cc/150?u=demo-user-123`,
-      isSponsored: true,
-      totalRides: 42,
-      totalCarbonSaved: 15.7,
-      memberSince: new Date('2023-01-15T10:00:00Z'),
-      isVerified: true,
-    }
 
-    setUser(demoUser)
-    console.log('✅ Demo user created:', demoUser)
-    
-    setTimeout(() => {
-      setIsLoading(false)
-      console.log('🎯 Demo sign-in complete. Showing authenticated UI...')
-      // No manual redirect; authenticated UI will render on current page
-    }, 200)
-  }
 
   const updateLastActive = async () => {
-    if (user && user.id !== '507f1f77bcf86cd799439011') {
+    if (user) {
       try {
         await fetch('/api/auth/update-activity', {
           method: 'POST',
@@ -155,7 +128,6 @@ export function useGoCabAuth() {
     // Auth actions
     signIn: handleSignIn,
     signOut: handleSignOut,
-    demoSignIn,
     updateLastActive,
     
     // Utilities

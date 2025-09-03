@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: 'GoCab - Your Eco-Friendly Ride',
   description: 'Book sustainable rides with GoCab. Track your carbon savings while getting around the city.',
   icons: {
-    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>"
+    icon: '/icons/GOLOGO.svg'
   }
 }
 

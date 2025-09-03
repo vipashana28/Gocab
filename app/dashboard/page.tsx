@@ -5,6 +5,7 @@ import { useGoCabAuth } from '@/lib/auth/use-gocab-auth-google'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import MapView from '@/components/Map/MapView'
+import { geocodeAddress, getBestGeocodeResult, validateAddressInput, formatLocationForDisplay } from '@/lib/geocoding'
 
 interface ActiveRide {
   id: string
@@ -39,6 +40,7 @@ interface ActiveRide {
   }
   requestedAt: Date
   estimatedArrival?: string
+  isSimulated?: boolean // Flag to identify simulated rides
 }
 
 interface MapMarker {
@@ -57,12 +59,23 @@ export default function DashboardPage() {
   const [showBookingForm, setShowBookingForm] = useState(false)
   const [pickupAddress, setPickupAddress] = useState('')
   const [destinationAddress, setDestinationAddress] = useState('')
+  const [pickupCoordinates, setPickupCoordinates] = useState<{ latitude: number, longitude: number } | null>(null)
+  const [destinationCoordinates, setDestinationCoordinates] = useState<{ latitude: number, longitude: number } | null>(null)
   const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number } | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
 
   const [fareEstimate, setFareEstimate] = useState<any>(null)
   const [isCalculatingFare, setIsCalculatingFare] = useState(false)
   const [isSearchingForDriver, setIsSearchingForDriver] = useState(false)
+  const [isFirstLoad, setIsFirstLoad] = useState(true)
+  const [fareError, setFareError] = useState<string | null>(null)
+  
+  // Location disambiguation states
+  const [pickupOptions, setPickupOptions] = useState<any[]>([])
+  const [destinationOptions, setDestinationOptions] = useState<any[]>([])
+  const [showPickupOptions, setShowPickupOptions] = useState(false)
+  const [showDestinationOptions, setShowDestinationOptions] = useState(false)
+  const [isSelectingFromDropdown, setIsSelectingFromDropdown] = useState(false)
 
 
   // Memoize map markers to prevent re-renders
@@ -152,43 +165,40 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, user])
 
-  // Check for active rides and poll for updates (with demo user handling)
+  // Check for active rides and poll for updates
   useEffect(() => {
     const checkActiveRides = async () => {
       if (user) {
-        const isDemoUser = user.id === '507f1f77bcf86cd799439011'
-        
-        if (isDemoUser) {
-          // For demo users, check localStorage first and don't override with API
-          if (!activeRide) {
-            try {
-              const savedRide = localStorage.getItem('demo-active-ride')
-              if (savedRide) {
-                const rideData = JSON.parse(savedRide)
-                if (rideData.status && rideData.status !== 'completed' && rideData.status !== 'cancelled') {
-                  console.log('🔄 Restoring demo ride from localStorage')
-                  setActiveRide(rideData)
-                } else {
-                  localStorage.removeItem('demo-active-ride')
-                }
-              }
-            } catch (error) {
-              console.error('Error restoring demo ride:', error)
-              localStorage.removeItem('demo-active-ride')
-            }
+        // Clear rides on first load (fresh session)
+        if (isFirstLoad) {
+          try {
+            await fetch(`/api/users/${user.id}/active-rides`, {
+              method: 'DELETE'
+            })
+            setActiveRide(null)
+            console.log('🧹 Cleared active rides for fresh session')
+            setIsFirstLoad(false)
+          } catch (error) {
+            console.error('Error clearing rides on first load:', error)
+            setIsFirstLoad(false)
           }
-          return // Don't poll API for demo users
+          return
         }
-        
-        // For real users, check API
+
+        // Check API for active rides
         try {
           const response = await fetch(`/api/rides?userId=${user.id}&status=active`)
           if (response.ok) {
             const data = await response.json()
             if (data.success && data.data.length > 0) {
+              // Update with real ride data from database
               setActiveRide(data.data[0])
             } else {
+              // Only clear activeRide if it's not a simulated ride
+              if (!activeRide || !activeRide.isSimulated) {
               setActiveRide(null)
+              }
+              // Keep simulated rides in state (don't override with API response)
             }
           }
         } catch (error) {
@@ -200,45 +210,194 @@ export default function DashboardPage() {
     if (isAuthenticated && user) {
       checkActiveRides()
       
-      // Only poll for real users, not demo users
-      const isDemoUser = user.id === '507f1f77bcf86cd799439011'
-      if (!isDemoUser) {
+      // Only poll when not on first load
+      if (!isFirstLoad) {
         const interval = setInterval(checkActiveRides, 15000) // Reduced polling frequency
-        return () => clearInterval(interval)
-      }
+      return () => clearInterval(interval)
     }
-  }, [isAuthenticated, user, activeRide])
+    }
+  }, [isAuthenticated, user, activeRide, isFirstLoad])
+
+  // Handle location input with disambiguation
+  const handleLocationInput = async (address: string, type: 'pickup' | 'destination') => {
+    if (!address.trim()) {
+      if (type === 'pickup') {
+        setPickupOptions([])
+        setShowPickupOptions(false)
+      } else {
+        setDestinationOptions([])
+        setShowDestinationOptions(false)
+      }
+      return
+    }
+
+    try {
+      let geocodingUrl = `/api/geocoding?address=${encodeURIComponent(address)}`
+      
+      // Add user location for geographic bias
+      if (userLocation) {
+        geocodingUrl += `&lat=${userLocation.latitude}&lon=${userLocation.longitude}`
+      }
+      
+      const response = await fetch(geocodingUrl)
+      const data = await response.json()
+
+      if (data.success && data.data.length > 0) {
+        // Filter results to prioritize local ones if user location is available
+        let filteredResults = data.data
+        
+        if (userLocation) {
+          // Calculate distance to user for each result and sort by proximity
+          filteredResults = data.data.map((location: any) => {
+            const distance = Math.sqrt(
+              Math.pow(location.coordinates.latitude - userLocation.latitude, 2) +
+              Math.pow(location.coordinates.longitude - userLocation.longitude, 2)
+            )
+            return { ...location, distanceToUser: distance }
+          }).sort((a: any, b: any) => a.distanceToUser - b.distanceToUser)
+        }
+
+
+
+        // Filter out very distant results to improve relevance
+        if (userLocation && filteredResults.length > 3) {
+          // Keep results within reasonable distance (roughly 500km)
+          filteredResults = filteredResults.filter((location: any) => 
+            !location.distanceToUser || location.distanceToUser < 5.0
+          )
+        }
+
+        if (type === 'pickup') {
+          setPickupOptions(filteredResults.slice(0, 5)) // Limit to top 5 results
+          setShowPickupOptions(filteredResults.length > 1)
+        } else {
+          setDestinationOptions(filteredResults.slice(0, 5)) // Limit to top 5 results
+          setShowDestinationOptions(filteredResults.length > 1)
+        }
+      } else {
+        // If no results, still show feedback
+        if (type === 'pickup') {
+          setPickupOptions([])
+          setShowPickupOptions(false)
+        } else {
+          setDestinationOptions([])
+          setShowDestinationOptions(false)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching location options:', error)
+    }
+  }
+
+  // Select a specific location from options
+  const selectLocation = (location: any, type: 'pickup' | 'destination') => {
+    setIsSelectingFromDropdown(true)
+    
+    if (type === 'pickup') {
+      setPickupAddress(location.address)
+      setPickupCoordinates(location.coordinates)
+      setShowPickupOptions(false)
+      setPickupOptions([])
+    } else {
+      setDestinationAddress(location.address)
+      setDestinationCoordinates(location.coordinates)
+      setShowDestinationOptions(false)
+      setDestinationOptions([])
+    }
+    
+    // Reset flag after state updates
+    setTimeout(() => setIsSelectingFromDropdown(false), 100)
+  }
 
   // Calculate fare estimate in real-time
   const calculateFareEstimate = async (pickup: string, destination: string) => {
-    if (!pickup || !destination || !userLocation) return
+    if (!pickup || !destination) {
+      setFareError(null)
+      return
+    }
 
     setIsCalculatingFare(true)
+    setFareError(null)
+    
     try {
+      let pickupCoords, destinationCoords
 
-      // We need coordinates for the destination. For now, we'll mock it slightly offset
-      // from the user's location. In a real app, we'd use a geocoding service.
-      const destinationCoords = {
-        lat: userLocation.latitude + (Math.random() - 0.5) * 0.1,
-        lng: userLocation.longitude + (Math.random() - 0.5) * 0.1,
+      // Use stored coordinates if available (from dropdown selection), otherwise geocode
+      if (pickupCoordinates && destinationCoordinates) {
+        pickupCoords = {
+          lat: pickupCoordinates.latitude,
+          lng: pickupCoordinates.longitude,
+        }
+        destinationCoords = {
+          lat: destinationCoordinates.latitude,
+          lng: destinationCoordinates.longitude,
+        }
+      } else {
+        // Fallback to geocoding if coordinates not available
+        const [pickupGeocode, destinationGeocode] = await Promise.all([
+          geocodeAddress(pickup),
+          geocodeAddress(destination)
+        ])
+
+        // More permissive validation with fallbacks
+        if (!pickupGeocode.success && !destinationGeocode.success) {
+          throw new Error('Unable to verify both addresses. Please check your internet connection.')
+        }
+        
+        if (!pickupGeocode.success) {
+          throw new Error('Unable to find pickup location. Please try a more specific pickup address.')
+        }
+        
+        if (!destinationGeocode.success) {
+          throw new Error('Unable to find destination. Please try a more specific destination address.')
+        }
+
+        if (pickupGeocode.data.length === 0) {
+          throw new Error('Pickup location not found. Try adding city/state or use a landmark nearby.')
+        }
+        
+        if (destinationGeocode.data.length === 0) {
+          throw new Error('Destination not found. Try adding city/state or use a landmark nearby.')
+        }
+
+        const pickupLocation = getBestGeocodeResult(pickupGeocode.data)
+        const destinationLocation = getBestGeocodeResult(destinationGeocode.data)
+
+        if (!pickupLocation) {
+          throw new Error('Pickup location unclear. Please be more specific or choose from suggestions.')
+        }
+        
+        if (!destinationLocation) {
+          throw new Error('Destination unclear. Please be more specific or choose from suggestions.')
+        }
+
+        pickupCoords = {
+          lat: pickupLocation.coordinates.latitude,
+          lng: pickupLocation.coordinates.longitude,
+        }
+
+        destinationCoords = {
+          lat: destinationLocation.coordinates.latitude,
+          lng: destinationLocation.coordinates.longitude,
+        }
       }
 
       const response = await fetch('/api/directions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          start: { lat: userLocation.latitude, lng: userLocation.longitude },
+          start: pickupCoords,
           end: destinationCoords,
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to fetch route details')
+        throw new Error('Unable to calculate route. Please try again in a moment.')
       }
 
       const result = await response.json()
       if (!result.success) {
-        throw new Error(result.error || 'Could not calculate route')
+        throw new Error(result.error || 'No valid route found between these locations. Please try different addresses.')
       }
 
       const { distance, duration } = result.data
@@ -272,23 +431,86 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Error calculating fare:', error)
       setFareEstimate(null) // Clear estimate on error
+      
+      // Set user-friendly error message
+      if (error instanceof Error) {
+        setFareError(error.message)
+      } else {
+        setFareError('Unable to calculate fare. Please check your addresses and try again.')
+      }
     } finally {
       setIsCalculatingFare(false)
     }
   }
 
+  // Retry fare calculation
+  const retryFareCalculation = () => {
+    if (pickupAddress && destinationAddress) {
+      calculateFareEstimate(pickupAddress, destinationAddress)
+    }
+  }
+
+  // Handle location input with debouncing
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (pickupAddress && pickupAddress.length >= 2) {
+        handleLocationInput(pickupAddress, 'pickup')
+      }
+    }, 400) // Faster response for better UX
+
+    return () => clearTimeout(timeoutId)
+  }, [pickupAddress, userLocation])
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (destinationAddress && destinationAddress.length >= 2) {
+        handleLocationInput(destinationAddress, 'destination')
+      }
+    }, 400) // Faster response for better UX
+
+    return () => clearTimeout(timeoutId)
+  }, [destinationAddress, userLocation])
+
+  // Clear stored coordinates when addresses are manually changed (but not when selected from dropdown)
+  useEffect(() => {
+    if (!isSelectingFromDropdown) {
+      setPickupCoordinates(null)
+    }
+  }, [pickupAddress, isSelectingFromDropdown])
+
+  useEffect(() => {
+    if (!isSelectingFromDropdown) {
+      setDestinationCoordinates(null)
+    }
+  }, [destinationAddress, isSelectingFromDropdown])
+
+  // Close location options when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (!target.closest('.location-input-container')) {
+        setShowPickupOptions(false)
+        setShowDestinationOptions(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   // Real-time fare calculation when addresses change
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
-      if (pickupAddress && destinationAddress) {
+      if (pickupAddress && destinationAddress && !showPickupOptions && !showDestinationOptions) {
         calculateFareEstimate(pickupAddress, destinationAddress)
       } else {
         setFareEstimate(null)
+        setFareError(null) // Clear errors when addresses are incomplete
       }
-    }, 500) // Debounce for 500ms
+    }, 1500) // Longer debounce for geocoding (1.5 seconds)
 
     return () => clearTimeout(debounceTimer)
-  }, [pickupAddress, destinationAddress, userLocation])
+  }, [pickupAddress, destinationAddress, showPickupOptions, showDestinationOptions])
 
   // Load ride history
   
@@ -296,224 +518,196 @@ export default function DashboardPage() {
   useEffect(() => {
     if (activeRide && activeRide.status !== 'completed' && activeRide.status !== 'cancelled') {
       const interval = setInterval(() => {
-        const isDemoUser = user?.id === '507f1f77bcf86cd799439011'
-        
-        if (isDemoUser && activeRide.driverLocation) {
-          // Simulate driver movement for demo
-          const currentLocation = activeRide.driverLocation.coordinates
-          const userLocation = activeRide.pickup.coordinates
-          
-          // Move driver closer to user over time
-          const progress = Math.min(Date.now() - new Date(activeRide.requestedAt).getTime(), 120000) / 120000 // 2 minutes max
-          const newLat = currentLocation.latitude + (userLocation.latitude - currentLocation.latitude) * progress * 0.1
-          const newLng = currentLocation.longitude + (userLocation.longitude - currentLocation.longitude) * progress * 0.1
-          
-          const updatedRide = {
-            ...activeRide,
-            driverLocation: {
-              coordinates: { latitude: newLat, longitude: newLng },
-              lastUpdated: new Date()
-            }
-          }
-          
-          setActiveRide(updatedRide)
-          localStorage.setItem('demo-active-ride', JSON.stringify(updatedRide))
-        }
+        // TODO: Implement real driver tracking API calls
+        console.log('Would fetch real driver location updates here')
       }, 5000) // Update every 5 seconds
 
       return () => clearInterval(interval)
     }
-  }, [activeRide, user])
+  }, [activeRide])
 
   const handleBookRide = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!user || !userLocation || !pickupAddress || !destinationAddress) {
-      alert('Please fill in all fields and ensure location access is enabled')
+    if (!user || !pickupAddress || !destinationAddress) {
+      alert('Please fill in all fields')
+      return
+    }
+
+    // Validate addresses
+    const pickupValidation = validateAddressInput(pickupAddress)
+    const destinationValidation = validateAddressInput(destinationAddress)
+    
+    if (!pickupValidation.isValid) {
+      alert(`Pickup address error: ${pickupValidation.error}`)
+      return
+    }
+    
+    if (!destinationValidation.isValid) {
+      alert(`Destination address error: ${destinationValidation.error}`)
       return
     }
 
     setIsBookingRide(true)
 
     try {
-      const pickup = {
-        address: pickupAddress,
-        coordinates: userLocation
-      }
+      let pickup, destination
 
-      // Mock destination coordinates (in production, use Google Places API)
-      const destination = {
+      // Use stored coordinates if available (from dropdown selection), otherwise geocode
+      if (pickupCoordinates && destinationCoordinates) {
+        console.log('✅ Using stored coordinates from dropdown selection')
+        pickup = {
+        address: pickupAddress,
+          coordinates: pickupCoordinates
+      }
+        destination = {
         address: destinationAddress,
-        coordinates: {
-          latitude: userLocation.latitude + (Math.random() - 0.5) * 0.1,
-          longitude: userLocation.longitude + (Math.random() - 0.5) * 0.1
+          coordinates: destinationCoordinates
+        }
+      } else {
+        console.log('🔍 Geocoding addresses...')
+        
+        // Fallback to geocoding if coordinates not available
+        const pickupGeocode = await geocodeAddress(pickupAddress)
+        
+        if (!pickupGeocode.success || pickupGeocode.data.length === 0) {
+          alert('Could not find pickup location. Please enter a more specific address.')
+          setIsBookingRide(false)
+          return
+        }
+
+        const destinationGeocode = await geocodeAddress(destinationAddress)
+        
+        if (!destinationGeocode.success || destinationGeocode.data.length === 0) {
+          alert('Could not find destination. Please enter a more specific address.')
+          setIsBookingRide(false)
+          return
+        }
+
+        // Get best results
+        const pickupLocation = getBestGeocodeResult(pickupGeocode.data)
+        const destinationLocation = getBestGeocodeResult(destinationGeocode.data)
+        
+        if (!pickupLocation || !destinationLocation) {
+          alert('Could not determine exact locations. Please try more specific addresses.')
+          setIsBookingRide(false)
+          return
+        }
+
+        console.log('✅ Geocoded pickup:', pickupLocation)
+        console.log('✅ Geocoded destination:', destinationLocation)
+
+        pickup = {
+          address: formatLocationForDisplay(pickupLocation),
+          coordinates: pickupLocation.coordinates
+        }
+
+        destination = {
+          address: formatLocationForDisplay(destinationLocation),
+          coordinates: destinationLocation.coordinates
         }
       }
 
-      const isDemoUser = user.id === '507f1f77bcf86cd799439011'
+      // Real user API flow
+      const response = await fetch('/api/rides', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          pickup,
+          destination,
+          userNotes: '',
+        }),
+      })
 
-      if (isDemoUser) {
-        // Demo user flow with persistent driver details
-        console.log('Creating demo ride with persistent driver details...')
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Ride booked successfully:', result)
         setShowBookingForm(false)
         setPickupAddress('')
         setDestinationAddress('')
-        
-        // Create comprehensive demo ride
-        const demoDrivers = [
-          {
-            name: 'Alex Rodriguez',
-            phone: '+1 (555) 247-8901',
-            vehicleInfo: '2023 Honda Civic - Silver',
-            licensePlate: 'HND-482',
-            photo: 'https://i.pravatar.cc/150?u=alex-rodriguez'
-          },
-          {
-            name: 'Sarah Kim',
-            phone: '+1 (555) 391-2657',
-            vehicleInfo: '2022 Toyota Prius - White',
-            licensePlate: 'TOY-193',
-            photo: 'https://i.pravatar.cc/150?u=sarah-kim'
-          },
-          {
-            name: 'Marcus Johnson',
-            phone: '+1 (555) 584-3726',
-            vehicleInfo: '2024 Nissan Sentra - Blue',
-            licensePlate: 'NSN-627',
-            photo: 'https://i.pravatar.cc/150?u=marcus-johnson'
-          }
-        ]
-        
-        const selectedDriver = demoDrivers[Math.floor(Math.random() * demoDrivers.length)]
-        
-        const demoRide = {
-          id: 'demo-ride-' + Date.now(),
-          rideId: 'DEMO-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-          pickupCode: Math.floor(100000 + Math.random() * 900000).toString(),
-          status: 'matched',
-          statusDisplay: 'Driver Found',
-          pickup,
-          destination,
-          driverContact: selectedDriver,
-          driverLocation: {
-            coordinates: {
-              latitude: userLocation.latitude + 0.005,
-              longitude: userLocation.longitude + 0.005
-            },
-            lastUpdated: new Date()
-          },
-          pricing: {
-            totalEstimated: 15.50,
-            baseFare: 3.00,
-            distanceFee: 1.50,
-            timeFee: 0.25,
-            currency: 'USD',
-            isSponsored: true
-          },
-          carbonFootprint: {
-            estimatedSaved: 2.3,
-            comparisonMethod: 'vs private car',
-            calculationMethod: 'EPA standard'
-          },
-          requestedAt: new Date(),
-          estimatedArrival: `${Math.floor(Math.random() * 5) + 3} minutes`
-        }
-        
-        // Immediately set active ride and persist to localStorage
-        setActiveRide(demoRide as any)
-        localStorage.setItem('demo-active-ride', JSON.stringify(demoRide))
-        console.log('✅ Demo ride created and persisted:', demoRide.rideId)
-        
-        // Simulate driver arrival after 30 seconds
-        setTimeout(() => {
-          const arrivedRide = {
-            ...demoRide,
-            status: 'arrived' as const,
-            statusDisplay: 'Driver Arrived',
-            estimatedArrival: 'Driver is here!'
-          }
-          setActiveRide(arrivedRide as any)
-          localStorage.setItem('demo-active-ride', JSON.stringify(arrivedRide))
-          console.log('🚗 Demo driver arrived')
-        }, 30000)
-        
-      } else {
-        // Real user API flow
-        const response = await fetch('/api/rides', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: user.id,
-            pickup,
-            destination,
-            userNotes: '',
-          }),
-        })
-
-        if (response.ok) {
-          const result = await response.json()
-          console.log('Ride booked successfully:', result)
-          setShowBookingForm(false)
-          setPickupAddress('')
-          setDestinationAddress('')
           
-          // a ride request is submitted and the system is finding a driver.
-          if (result.success && result.data.status === 'requested') {
-            setIsSearchingForDriver(true)
-          }
-
-          // Simulate finding a driver after 3 seconds
-          setTimeout(() => {
-            const matchedRide = {
+          // Immediately set the active ride from API response (with requested status)
+          if (result.success && result.data) {
+            setActiveRide({
               ...result.data,
+              statusDisplay: 'Finding Driver...',
+              isSimulated: false // This is a real ride from database
+            })
+            setIsSearchingForDriver(true)
+            setIsBookingRide(false) // Now safe to turn off booking mode since we have active ride
+          }
+        
+        // Simulate finding a driver after 3 seconds
+        setTimeout(() => {
+            const matchedRide = {
+            ...result.data,
               status: 'matched' as const,
-              statusDisplay: 'Driver Found',
-              driverContact: {
-                name: 'John Smith',
-                phone: '+1 (555) 123-4567',
-                vehicleInfo: '2022 Toyota Camry - Blue',
-                licensePlate: 'ABC-123',
+            statusDisplay: 'Driver Found',
+            driverContact: {
+              name: 'John Smith',
+              phone: '+1 (555) 123-4567',
+              vehicleInfo: '2022 Toyota Camry - Blue',
+              licensePlate: 'ABC-123',
                 photo: 'https://i.pravatar.cc/150?u=driver-john',
-              },
-              driverLocation: {
-                coordinates: {
-                  latitude: userLocation.latitude + 0.01,
-                  longitude: userLocation.longitude + 0.01
+            },
+            driverLocation: {
+              coordinates: {
+                  latitude: pickup.coordinates.latitude + 0.01,
+                  longitude: pickup.coordinates.longitude + 0.01
                 },
                 lastUpdated: new Date(),
               },
               estimatedArrival: '5 minutes',
+              isSimulated: true // This is simulated driver assignment
             }
             setActiveRide(matchedRide)
             // Once a driver is found, turn off the searching UI.
             setIsSearchingForDriver(false)
-          }, 3000)
-        } else {
-          const errorData = await response.json()
-          alert(errorData.error?.message || 'Failed to book ride')
-        }
+        }, 3000)
+      } else {
+        const errorData = await response.json()
+        alert(errorData.error?.message || 'Failed to book ride')
       }
     } catch (error) {
       console.error('Error booking ride:', error)
       alert('Network error while booking ride')
-    } finally {
       setIsBookingRide(false)
+    }
+  }
+
+  const handleSignOut = async () => {
+    try {
+      // Clear any active rides before signing out
+      if (activeRide && user) {
+        // Clear real rides from database
+        await fetch(`/api/users/${user.id}/active-rides`, {
+          method: 'DELETE'
+        })
+        console.log('🧹 Active rides cleared on sign out')
+      }
+      
+      // Clear local state
+      setActiveRide(null)
+      setShowBookingForm(false)
+      setPickupAddress('')
+      setDestinationAddress('')
+      setFareEstimate(null)
+      setIsSearchingForDriver(false)
+      
+      // Sign out
+      await signOut()
+    } catch (error) {
+      console.error('Error during sign out cleanup:', error)
+      // Still proceed with sign out even if cleanup fails
+      await signOut()
     }
   }
 
   const handleCancelRide = async () => {
     if (!activeRide) return
-    
-    const isDemoUser = user?.id === '507f1f77bcf86cd799439011'
-    
-    if (isDemoUser) {
-      setActiveRide(null)
-      localStorage.removeItem('demo-active-ride')
-      console.log('✅ Demo ride cancelled and removed from localStorage')
-      return
-    }
     
     try {
       const response = await fetch(`/api/rides/${activeRide.id}`, {
@@ -538,20 +732,6 @@ export default function DashboardPage() {
   const handleStartTrip = async () => {
     if (!activeRide) return
     
-    const isDemoUser = user?.id === '507f1f77bcf86cd799439011'
-    
-    if (isDemoUser) {
-      const updatedRide = {
-        ...activeRide,
-        status: 'in_progress' as const,
-        statusDisplay: 'Trip in Progress'
-      }
-      setActiveRide(updatedRide)
-      localStorage.setItem('demo-active-ride', JSON.stringify(updatedRide))
-      console.log('✅ Demo trip started')
-      return
-    }
-    
     try {
       const response = await fetch(`/api/rides/${activeRide.id}`, {
         method: 'PATCH',
@@ -575,22 +755,6 @@ export default function DashboardPage() {
 
   const handleEndTrip = async () => {
     if (!activeRide) return
-    
-    const isDemoUser = user?.id === '507f1f77bcf86cd799439011'
-    
-    if (isDemoUser) {
-      // Demo trip completion with mock summary
-      const mockDuration = Math.floor(Math.random() * 20) + 10 // 10-30 minutes
-      const mockDistance = Math.round((Math.random() * 5 + 2) * 10) / 10 // 2-7 miles
-      const mockCarbonSaved = Math.round(mockDistance * 0.4 * 10) / 10 // ~0.4kg per mile
-      
-      alert(`Trip Completed!\n\nDuration: ${mockDuration} minutes\nDistance: ${mockDistance} miles\nCarbon Saved: ${mockCarbonSaved}kg CO₂\n\nThank you for riding with GoCab!`)
-      
-      setActiveRide(null)
-      localStorage.removeItem('demo-active-ride')
-      console.log('✅ Demo trip completed and cleared')
-      return
-    }
     
     try {
       const response = await fetch(`/api/rides/${activeRide.id}`, {
@@ -651,8 +815,8 @@ export default function DashboardPage() {
       
       {/* Full Screen Map */}
       <div className="absolute inset-0 z-0">
-        <MapView
-          center={[mapCenter.latitude, mapCenter.longitude]}
+        <MapView 
+          center={[mapCenter.latitude, mapCenter.longitude]} 
           zoom={13}
           markers={markers}
         />
@@ -661,32 +825,26 @@ export default function DashboardPage() {
       {/* Top Header */}
       <div className="absolute top-0 left-0 right-0 z-50 bg-white shadow-sm border-b">
         <div className="flex justify-between items-center px-4 py-3">
-          <h1 className="text-lg font-bold text-gray-900">GoCab Dashboard</h1>
           <div className="flex items-center space-x-3">
+            <div className="w-8 h-8">
+              <img 
+                src="/icons/GOLOGO.svg" 
+                alt="GoCab Logo" 
+                className="w-full h-full"
+              />
+            </div>
+          <h1 className="text-lg font-bold text-gray-900">GoCab Dashboard</h1>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button 
+              onClick={() => window.location.href = '/events'}
+              className="text-sm bg-green-100 text-green-700 hover:bg-green-200 px-3 py-2 rounded-lg transition-colors duration-200"
+            >
+              Events
+            </button>
             <span className="text-sm text-gray-600">Hi, {user?.firstName}!</span>
             <button 
-              onClick={async () => {
-                if (user && confirm('Clear all active rides for your account? (Admin debug feature)')) {
-                  try {
-                    const response = await fetch(`/api/users/${user.id}/active-rides`, {
-                      method: 'DELETE'
-                    })
-                    if (response.ok) {
-                      const result = await response.json()
-                      alert(`Cleared ${result.data.cleared} stale rides`)
-                      setActiveRide(null)
-                    }
-                  } catch (error) {
-                    console.error('Failed to clear rides:', error)
-                  }
-                }
-              }}
-              className="text-xs text-yellow-600 hover:text-yellow-700"
-            >
-              🧹 Clear Rides
-            </button>
-            <button 
-              onClick={signOut}
+              onClick={handleSignOut}
               className="text-sm text-red-600 hover:text-red-700"
             >
               Sign Out
@@ -791,7 +949,7 @@ export default function DashboardPage() {
                   onClick={handleStartTrip}
                   className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-green-700 transition-colors"
                 >
-                  🚀 Start Trip
+                  Start Trip
                 </button>
               )}
               
@@ -799,28 +957,27 @@ export default function DashboardPage() {
               {activeRide.status === 'in_progress' && (
                 <button
                   onClick={handleEndTrip}
-                  className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors"
+                  className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-green-700 transition-colors"
                 >
-                  🏁 End Trip
+                  End Trip
                 </button>
               )}
               
               {/* Standard Action Buttons - Show for other statuses */}
               {activeRide.status !== 'in_progress' && (
-                <div className="flex space-x-3">
-                  <button
-                    onClick={callDriver}
-                    className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 flex items-center justify-center space-x-2"
-                  >
-                    <span>📞</span>
-                    <span>Call Driver</span>
-                  </button>
-                  <button
-                    onClick={handleCancelRide}
-                    className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700"
-                  >
-                    Cancel Ride
-                  </button>
+            <div className="flex space-x-3">
+              <button
+                onClick={callDriver}
+                className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 flex items-center justify-center"
+              >
+                <span>Call Driver</span>
+              </button>
+              <button
+                onClick={handleCancelRide}
+                className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700"
+              >
+                Cancel Ride
+              </button>
                 </div>
               )}
             </div>
@@ -851,7 +1008,7 @@ export default function DashboardPage() {
               </div>
               
               <form onSubmit={handleBookRide} className="space-y-4">
-                <div>
+                <div className="relative location-input-container">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Pickup Location
                   </label>
@@ -863,9 +1020,43 @@ export default function DashboardPage() {
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
+                  
+                  {/* Pickup Location Options Dropdown */}
+                  {pickupAddress.length >= 2 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                      {pickupOptions.length > 0 ? (
+                        pickupOptions.map((option, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => selectLocation(option, 'pickup')}
+                            className="w-full px-3 py-2 text-left hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-sm text-gray-900 truncate">
+                              {option.details?.road || option.details?.city || 'Unknown Location'}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {option.details?.city}, {option.details?.state}, {option.details?.country}
+                            </div>
+                            {userLocation && option.distanceToUser && (
+                              <div className="text-xs text-blue-600">
+                                ~{Math.round(option.distanceToUser * 111)} km away
+                              </div>
+                            )}
+                          </button>
+                        ))
+                      ) : (
+                        pickupAddress.length >= 3 && (
+                          <div className="px-3 py-2 text-sm text-gray-500">
+                            No suggestions found. Try adding city/area name.
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <div>
+                <div className="relative location-input-container">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Destination
                   </label>
@@ -877,10 +1068,77 @@ export default function DashboardPage() {
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
+                  
+                  {/* Destination Location Options Dropdown */}
+                  {destinationAddress.length >= 2 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                      {destinationOptions.length > 0 ? (
+                        destinationOptions.map((option, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => selectLocation(option, 'destination')}
+                            className="w-full px-3 py-2 text-left hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-sm text-gray-900 truncate">
+                              {option.details?.road || option.details?.city || 'Unknown Location'}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {option.details?.city}, {option.details?.state}, {option.details?.country}
+                            </div>
+                            {userLocation && option.distanceToUser && (
+                              <div className="text-xs text-blue-600">
+                                ~{Math.round(option.distanceToUser * 111)} km away
+                              </div>
+                            )}
+                          </button>
+                        ))
+                      ) : (
+                        destinationAddress.length >= 3 && (
+                          <div className="px-3 py-2 text-sm text-gray-500">
+                            No suggestions found. Try adding city/area name.
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
                 </div>
 
+                {/* Fare Error Display */}
+                {fareError && (
+                  <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-5 h-5 text-red-500 mt-0.5">
+                        <svg fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-red-800 font-medium text-sm">Unable to calculate fare</h4>
+                        <p className="text-red-700 text-sm mt-1">{fareError}</p>
+                        <button
+                          onClick={retryFareCalculation}
+                          className="text-red-600 hover:text-red-800 text-sm font-medium mt-2 underline"
+                        >
+                          Try again
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Fare Calculation Loading */}
+                {isCalculatingFare && !fareError && (
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                      <span className="text-blue-800 text-sm">Calculating fare...</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Fare Estimate Display */}
-                {fareEstimate && (
+                {fareEstimate && !fareError && (
                   <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-lg">Fare Estimate</span>
@@ -916,7 +1174,7 @@ export default function DashboardPage() {
                       <div>
                         <span className="font-bold text-lg">${fareEstimate.totalEstimated.toFixed(2)}</span>
                         <div className="text-xs text-green-600">
-                          🌱 Save {fareEstimate.carbonSaved} kg CO₂
+                          Save {fareEstimate.carbonSaved} kg CO₂
                         </div>
                       </div>
                     </div>
@@ -925,14 +1183,16 @@ export default function DashboardPage() {
 
                 <button
                   type="submit"
-                  disabled={isBookingRide || !userLocation || !fareEstimate}
-                  className="w-full bg-black text-white py-4 px-6 rounded-lg font-medium hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all"
+                  disabled={isBookingRide || !userLocation || !fareEstimate || !!fareError}
+                  className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all"
                 >
                   {isBookingRide ? (
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
                       <span>Finding Driver...</span>
                     </div>
+                  ) : fareError ? (
+                    'Fix address errors to continue'
                   ) : fareEstimate ? (
                     `Book for $${fareEstimate.totalEstimated.toFixed(2)}`
                   ) : (
@@ -945,9 +1205,9 @@ export default function DashboardPage() {
             /* Book Ride Button */
             <button
               onClick={() => setShowBookingForm(true)}
-              className="w-full bg-black text-white py-4 px-6 rounded-2xl font-medium text-lg shadow-2xl hover:bg-gray-800"
+              className="w-full bg-green-600 text-white py-4 px-6 rounded-2xl font-medium text-lg shadow-2xl hover:bg-green-700"
             >
-              🚗 Where to? 📍
+              Where to?
             </button>
           )}
         </div>

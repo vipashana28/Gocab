@@ -246,21 +246,24 @@ export default function EventsPage() {
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-6">
           <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">🎉 Event Discovery</h1>
-              <p className="text-gray-600 mt-1">Find events and book rides to get there</p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10">
+                <img 
+                  src="/icons/GOLOGO.svg" 
+                  alt="GoCab Logo" 
+                  className="w-full h-full"
+                />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Event Discovery</h1>
+                <p className="text-gray-600 mt-1">Find events and book rides to get there</p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => router.push('/')}
-                className="text-primary-600 hover:text-primary-700"
-              >
-                Home
-              </button>
               {isAuthenticated && (
                 <button 
                   onClick={() => router.push('/dashboard')}
-                  className="btn-primary"
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
                 >
                   Dashboard
                 </button>
@@ -353,7 +356,13 @@ export default function EventsPage() {
                       className="w-full h-full object-cover rounded-lg"
                     />
                   ) : (
-                    <div className="text-4xl">🎭</div>
+                    <div className="text-4xl">
+                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                        </svg>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -374,7 +383,7 @@ export default function EventsPage() {
 
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center text-gray-600">
-                      <span className="mr-2">📅</span>
+
                       {new Date(event.startDate).toLocaleDateString('en-US', {
                         weekday: 'short',
                         month: 'short', 
@@ -395,7 +404,7 @@ export default function EventsPage() {
 
                     {event.priceRange && (
                       <div className="flex items-center text-gray-600">
-                        <span className="mr-2">💰</span>
+
                         <span>{event.priceRange}</span>
                       </div>
                     )}
@@ -406,17 +415,17 @@ export default function EventsPage() {
                     <div>
                       {event.isHappeningNow && (
                         <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
-                          🔴 Live Now
+                          Live Now
                         </span>
                       )}
                       {event.isUpcoming && !event.isHappeningNow && (
                         <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
-                          📅 Upcoming
+                          Upcoming
                         </span>
                       )}
                       {event.isPast && (
                         <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-1 rounded-full">
-                          ⏰ Past
+                          Past
                         </span>
                       )}
                     </div>
@@ -492,7 +501,7 @@ export default function EventsPage() {
             }}
             className="bg-green-100 text-green-800 hover:bg-green-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
-            🧪 Create Sample Event (Dev)
+            Create Sample Event (Dev)
           </button>
         </div>
       </div>
