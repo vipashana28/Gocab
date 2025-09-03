@@ -1,22 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useGoCabAuth } from '@/lib/auth/use-gocab-auth-google'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import dynamic from 'next/dynamic'
-
-// Dynamic import for map to avoid SSR issues
-const MapView = dynamic(() => import('@/components/Map/MapView'), { 
-  ssr: false,
-  loading: () => <div className="w-full h-full bg-gray-200 animate-pulse"></div>
-})
+import MapView from '@/components/Map/MapView'
 
 interface ActiveRide {
   id: string
   rideId: string
   pickupCode: string
-  status: 'requested' | 'matched' | 'driver_en_route' | 'arrived' | 'in_progress' | 'completed'
+  status: 'requested' | 'matched' | 'driver_en_route' | 'arrived' | 'in_progress' | 'completed' | 'cancelled'
   statusDisplay: string
   pickup: {
     address: string
@@ -47,6 +41,12 @@ interface ActiveRide {
   estimatedArrival?: string
 }
 
+interface MapMarker {
+  position: [number, number]
+  popupText: string
+  icon: 'pickup' | 'destination' | 'driver'
+}
+
 export default function DashboardPage() {
   const { isAuthenticated, user, isLoading, signOut } = useGoCabAuth()
   const { status } = useSession()
@@ -60,6 +60,47 @@ export default function DashboardPage() {
   const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number } | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
 
+  const [fareEstimate, setFareEstimate] = useState<any>(null)
+  const [isCalculatingFare, setIsCalculatingFare] = useState(false)
+  const [isSearchingForDriver, setIsSearchingForDriver] = useState(false)
+
+
+  // Memoize map markers to prevent re-renders
+  const markers: MapMarker[] = useMemo(() => {
+    const allMarkers: MapMarker[] = []
+    if (activeRide) {
+      // Pickup marker
+      allMarkers.push({
+        position: [
+          activeRide.pickup.coordinates.latitude,
+          activeRide.pickup.coordinates.longitude,
+        ],
+        popupText: 'Pickup Location',
+        icon: 'pickup',
+      })
+      // Destination marker
+      allMarkers.push({
+        position: [
+          activeRide.destination.coordinates.latitude,
+          activeRide.destination.coordinates.longitude,
+        ],
+        popupText: 'Destination',
+        icon: 'destination',
+      })
+      // Driver marker
+      if (activeRide.driverLocation) {
+        allMarkers.push({
+          position: [
+            activeRide.driverLocation.coordinates.latitude,
+            activeRide.driverLocation.coordinates.longitude,
+          ],
+          popupText: `Driver: ${activeRide.driverContact?.name}`,
+          icon: 'driver',
+        })
+      }
+    }
+    return allMarkers
+  }, [activeRide])
 
 
   // Redirect if not authenticated (with a small delay to avoid race conditions)
@@ -111,10 +152,35 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, user])
 
-  // Check for active rides and poll for updates
+  // Check for active rides and poll for updates (with demo user handling)
   useEffect(() => {
     const checkActiveRides = async () => {
       if (user) {
+        const isDemoUser = user.id === '507f1f77bcf86cd799439011'
+        
+        if (isDemoUser) {
+          // For demo users, check localStorage first and don't override with API
+          if (!activeRide) {
+            try {
+              const savedRide = localStorage.getItem('demo-active-ride')
+              if (savedRide) {
+                const rideData = JSON.parse(savedRide)
+                if (rideData.status && rideData.status !== 'completed' && rideData.status !== 'cancelled') {
+                  console.log('🔄 Restoring demo ride from localStorage')
+                  setActiveRide(rideData)
+                } else {
+                  localStorage.removeItem('demo-active-ride')
+                }
+              }
+            } catch (error) {
+              console.error('Error restoring demo ride:', error)
+              localStorage.removeItem('demo-active-ride')
+            }
+          }
+          return // Don't poll API for demo users
+        }
+        
+        // For real users, check API
         try {
           const response = await fetch(`/api/rides?userId=${user.id}&status=active`)
           if (response.ok) {
@@ -133,11 +199,131 @@ export default function DashboardPage() {
 
     if (isAuthenticated && user) {
       checkActiveRides()
-      // Poll for ride updates every 10 seconds for real-time tracking
-      const interval = setInterval(checkActiveRides, 10000)
+      
+      // Only poll for real users, not demo users
+      const isDemoUser = user.id === '507f1f77bcf86cd799439011'
+      if (!isDemoUser) {
+        const interval = setInterval(checkActiveRides, 15000) // Reduced polling frequency
+        return () => clearInterval(interval)
+      }
+    }
+  }, [isAuthenticated, user, activeRide])
+
+  // Calculate fare estimate in real-time
+  const calculateFareEstimate = async (pickup: string, destination: string) => {
+    if (!pickup || !destination || !userLocation) return
+
+    setIsCalculatingFare(true)
+    try {
+
+      // We need coordinates for the destination. For now, we'll mock it slightly offset
+      // from the user's location. In a real app, we'd use a geocoding service.
+      const destinationCoords = {
+        lat: userLocation.latitude + (Math.random() - 0.5) * 0.1,
+        lng: userLocation.longitude + (Math.random() - 0.5) * 0.1,
+      }
+
+      const response = await fetch('/api/directions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start: { lat: userLocation.latitude, lng: userLocation.longitude },
+          end: destinationCoords,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch route details')
+      }
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.error || 'Could not calculate route')
+      }
+
+      const { distance, duration } = result.data
+
+      // Use the real distance and duration for fare calculation
+      const baseFare = 3.50
+      const distanceFee = distance * 2.25
+      const timeFee = duration * 0.15 // Assuming $0.15 per minute
+      const totalEstimated = baseFare + distanceFee + timeFee
+
+      // Mock surge pricing (peak hours)
+      const currentHour = new Date().getHours()
+      const isPeakHour =
+        (currentHour >= 7 && currentHour <= 9) ||
+        (currentHour >= 17 && currentHour <= 19)
+      const surgeMultiplier = isPeakHour ? 1.5 : 1.0
+
+      const estimate = {
+        distance: distance,
+        baseFare,
+        distanceFee: Math.round(distanceFee * 100) / 100,
+        timeFee: Math.round(timeFee * 100) / 100,
+        subtotal: Math.round(totalEstimated * 100) / 100,
+        surgeMultiplier,
+        totalEstimated: Math.round(totalEstimated * surgeMultiplier * 100) / 100,
+        estimatedDuration: duration,
+        carbonSaved: Math.round(distance * 0.404 * 0.6 * 100) / 100,
+      }
+
+      setFareEstimate(estimate)
+    } catch (error) {
+      console.error('Error calculating fare:', error)
+      setFareEstimate(null) // Clear estimate on error
+    } finally {
+      setIsCalculatingFare(false)
+    }
+  }
+
+  // Real-time fare calculation when addresses change
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      if (pickupAddress && destinationAddress) {
+        calculateFareEstimate(pickupAddress, destinationAddress)
+      } else {
+        setFareEstimate(null)
+      }
+    }, 500) // Debounce for 500ms
+
+    return () => clearTimeout(debounceTimer)
+  }, [pickupAddress, destinationAddress, userLocation])
+
+  // Load ride history
+  
+  // Real-time driver location tracking for active rides
+  useEffect(() => {
+    if (activeRide && activeRide.status !== 'completed' && activeRide.status !== 'cancelled') {
+      const interval = setInterval(() => {
+        const isDemoUser = user?.id === '507f1f77bcf86cd799439011'
+        
+        if (isDemoUser && activeRide.driverLocation) {
+          // Simulate driver movement for demo
+          const currentLocation = activeRide.driverLocation.coordinates
+          const userLocation = activeRide.pickup.coordinates
+          
+          // Move driver closer to user over time
+          const progress = Math.min(Date.now() - new Date(activeRide.requestedAt).getTime(), 120000) / 120000 // 2 minutes max
+          const newLat = currentLocation.latitude + (userLocation.latitude - currentLocation.latitude) * progress * 0.1
+          const newLng = currentLocation.longitude + (userLocation.longitude - currentLocation.longitude) * progress * 0.1
+          
+          const updatedRide = {
+            ...activeRide,
+            driverLocation: {
+              coordinates: { latitude: newLat, longitude: newLng },
+              lastUpdated: new Date()
+            }
+          }
+          
+          setActiveRide(updatedRide)
+          localStorage.setItem('demo-active-ride', JSON.stringify(updatedRide))
+        }
+      }, 5000) // Update every 5 seconds
+
       return () => clearInterval(interval)
     }
-  }, [isAuthenticated, user])
+  }, [activeRide, user])
 
   const handleBookRide = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -164,52 +350,150 @@ export default function DashboardPage() {
         }
       }
 
-      const response = await fetch('/api/rides', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          pickup,
-          destination,
-          userNotes: '',
-        }),
-      })
+      const isDemoUser = user.id === '507f1f77bcf86cd799439011'
 
-      if (response.ok) {
-        const result = await response.json()
-        console.log('Ride booked successfully:', result)
+      if (isDemoUser) {
+        // Demo user flow with persistent driver details
+        console.log('Creating demo ride with persistent driver details...')
         setShowBookingForm(false)
         setPickupAddress('')
         setDestinationAddress('')
         
-        // Simulate finding a driver after 3 seconds
+        // Create comprehensive demo ride
+        const demoDrivers = [
+          {
+            name: 'Alex Rodriguez',
+            phone: '+1 (555) 247-8901',
+            vehicleInfo: '2023 Honda Civic - Silver',
+            licensePlate: 'HND-482',
+            photo: 'https://i.pravatar.cc/150?u=alex-rodriguez'
+          },
+          {
+            name: 'Sarah Kim',
+            phone: '+1 (555) 391-2657',
+            vehicleInfo: '2022 Toyota Prius - White',
+            licensePlate: 'TOY-193',
+            photo: 'https://i.pravatar.cc/150?u=sarah-kim'
+          },
+          {
+            name: 'Marcus Johnson',
+            phone: '+1 (555) 584-3726',
+            vehicleInfo: '2024 Nissan Sentra - Blue',
+            licensePlate: 'NSN-627',
+            photo: 'https://i.pravatar.cc/150?u=marcus-johnson'
+          }
+        ]
+        
+        const selectedDriver = demoDrivers[Math.floor(Math.random() * demoDrivers.length)]
+        
+        const demoRide = {
+          id: 'demo-ride-' + Date.now(),
+          rideId: 'DEMO-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+          pickupCode: Math.floor(100000 + Math.random() * 900000).toString(),
+          status: 'matched',
+          statusDisplay: 'Driver Found',
+          pickup,
+          destination,
+          driverContact: selectedDriver,
+          driverLocation: {
+            coordinates: {
+              latitude: userLocation.latitude + 0.005,
+              longitude: userLocation.longitude + 0.005
+            },
+            lastUpdated: new Date()
+          },
+          pricing: {
+            totalEstimated: 15.50,
+            baseFare: 3.00,
+            distanceFee: 1.50,
+            timeFee: 0.25,
+            currency: 'USD',
+            isSponsored: true
+          },
+          carbonFootprint: {
+            estimatedSaved: 2.3,
+            comparisonMethod: 'vs private car',
+            calculationMethod: 'EPA standard'
+          },
+          requestedAt: new Date(),
+          estimatedArrival: `${Math.floor(Math.random() * 5) + 3} minutes`
+        }
+        
+        // Immediately set active ride and persist to localStorage
+        setActiveRide(demoRide as any)
+        localStorage.setItem('demo-active-ride', JSON.stringify(demoRide))
+        console.log('✅ Demo ride created and persisted:', demoRide.rideId)
+        
+        // Simulate driver arrival after 30 seconds
         setTimeout(() => {
-          setActiveRide({
-            ...result.data,
-            status: 'matched',
-            statusDisplay: 'Driver Found',
-            driverContact: {
-              name: 'John Smith',
-              phone: '+1 (555) 123-4567',
-              vehicleInfo: '2022 Toyota Camry - Blue',
-              licensePlate: 'ABC-123',
-              photo: 'https://i.pravatar.cc/150?u=driver-john'
-            },
-            driverLocation: {
-              coordinates: {
-                latitude: userLocation.latitude + 0.01,
-                longitude: userLocation.longitude + 0.01
-              },
-              lastUpdated: new Date()
-            },
-            estimatedArrival: '5 minutes'
-          })
-        }, 3000)
+          const arrivedRide = {
+            ...demoRide,
+            status: 'arrived' as const,
+            statusDisplay: 'Driver Arrived',
+            estimatedArrival: 'Driver is here!'
+          }
+          setActiveRide(arrivedRide as any)
+          localStorage.setItem('demo-active-ride', JSON.stringify(arrivedRide))
+          console.log('🚗 Demo driver arrived')
+        }, 30000)
+        
       } else {
-        const errorData = await response.json()
-        alert(errorData.error?.message || 'Failed to book ride')
+        // Real user API flow
+        const response = await fetch('/api/rides', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            pickup,
+            destination,
+            userNotes: '',
+          }),
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          console.log('Ride booked successfully:', result)
+          setShowBookingForm(false)
+          setPickupAddress('')
+          setDestinationAddress('')
+          
+          // a ride request is submitted and the system is finding a driver.
+          if (result.success && result.data.status === 'requested') {
+            setIsSearchingForDriver(true)
+          }
+
+          // Simulate finding a driver after 3 seconds
+          setTimeout(() => {
+            const matchedRide = {
+              ...result.data,
+              status: 'matched' as const,
+              statusDisplay: 'Driver Found',
+              driverContact: {
+                name: 'John Smith',
+                phone: '+1 (555) 123-4567',
+                vehicleInfo: '2022 Toyota Camry - Blue',
+                licensePlate: 'ABC-123',
+                photo: 'https://i.pravatar.cc/150?u=driver-john',
+              },
+              driverLocation: {
+                coordinates: {
+                  latitude: userLocation.latitude + 0.01,
+                  longitude: userLocation.longitude + 0.01
+                },
+                lastUpdated: new Date(),
+              },
+              estimatedArrival: '5 minutes',
+            }
+            setActiveRide(matchedRide)
+            // Once a driver is found, turn off the searching UI.
+            setIsSearchingForDriver(false)
+          }, 3000)
+        } else {
+          const errorData = await response.json()
+          alert(errorData.error?.message || 'Failed to book ride')
+        }
       }
     } catch (error) {
       console.error('Error booking ride:', error)
@@ -221,6 +505,15 @@ export default function DashboardPage() {
 
   const handleCancelRide = async () => {
     if (!activeRide) return
+    
+    const isDemoUser = user?.id === '507f1f77bcf86cd799439011'
+    
+    if (isDemoUser) {
+      setActiveRide(null)
+      localStorage.removeItem('demo-active-ride')
+      console.log('✅ Demo ride cancelled and removed from localStorage')
+      return
+    }
     
     try {
       const response = await fetch(`/api/rides/${activeRide.id}`, {
@@ -239,6 +532,92 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Error cancelling ride:', error)
+    }
+  }
+
+  const handleStartTrip = async () => {
+    if (!activeRide) return
+    
+    const isDemoUser = user?.id === '507f1f77bcf86cd799439011'
+    
+    if (isDemoUser) {
+      const updatedRide = {
+        ...activeRide,
+        status: 'in_progress' as const,
+        statusDisplay: 'Trip in Progress'
+      }
+      setActiveRide(updatedRide)
+      localStorage.setItem('demo-active-ride', JSON.stringify(updatedRide))
+      console.log('✅ Demo trip started')
+      return
+    }
+    
+    try {
+      const response = await fetch(`/api/rides/${activeRide.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'in_progress'
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        setActiveRide(prev => prev ? { ...prev, status: 'in_progress', statusDisplay: 'Trip in Progress' } : null)
+        console.log('Trip started')
+      }
+    } catch (error) {
+      console.error('Error starting trip:', error)
+    }
+  }
+
+  const handleEndTrip = async () => {
+    if (!activeRide) return
+    
+    const isDemoUser = user?.id === '507f1f77bcf86cd799439011'
+    
+    if (isDemoUser) {
+      // Demo trip completion with mock summary
+      const mockDuration = Math.floor(Math.random() * 20) + 10 // 10-30 minutes
+      const mockDistance = Math.round((Math.random() * 5 + 2) * 10) / 10 // 2-7 miles
+      const mockCarbonSaved = Math.round(mockDistance * 0.4 * 10) / 10 // ~0.4kg per mile
+      
+      alert(`Trip Completed!\n\nDuration: ${mockDuration} minutes\nDistance: ${mockDistance} miles\nCarbon Saved: ${mockCarbonSaved}kg CO₂\n\nThank you for riding with GoCab!`)
+      
+      setActiveRide(null)
+      localStorage.removeItem('demo-active-ride')
+      console.log('✅ Demo trip completed and cleared')
+      return
+    }
+    
+    try {
+      const response = await fetch(`/api/rides/${activeRide.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'completed'
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Trip completed successfully:', result.data)
+        
+        // Show completion summary
+        if (result.data.tripSummary) {
+          alert(`Trip Completed!\n\nDuration: ${result.data.tripSummary.duration} minutes\nDistance: ${result.data.tripSummary.distance?.toFixed(1)} miles\nCarbon Saved: ${result.data.tripSummary.carbonSaved}kg CO₂\n\nThank you for riding with GoCab!`)
+        }
+        
+        setActiveRide(null)
+      }
+    } catch (error) {
+      console.error('Error ending trip:', error)
+      // Fallback: still clear the ride locally
+      setActiveRide(null)
     }
   }
 
@@ -271,10 +650,11 @@ export default function DashboardPage() {
     <div className="relative h-screen w-full overflow-hidden bg-gray-900">
       
       {/* Full Screen Map */}
-      <div className="absolute inset-0">
-        <MapView 
-          center={[mapCenter.latitude, mapCenter.longitude]} 
+      <div className="absolute inset-0 z-0">
+        <MapView
+          center={[mapCenter.latitude, mapCenter.longitude]}
           zoom={13}
+          markers={markers}
         />
       </div>
 
@@ -285,10 +665,25 @@ export default function DashboardPage() {
           <div className="flex items-center space-x-3">
             <span className="text-sm text-gray-600">Hi, {user?.firstName}!</span>
             <button 
-              onClick={() => window.location.href = '/'}
-              className="text-sm text-blue-600 hover:text-blue-700"
+              onClick={async () => {
+                if (user && confirm('Clear all active rides for your account? (Admin debug feature)')) {
+                  try {
+                    const response = await fetch(`/api/users/${user.id}/active-rides`, {
+                      method: 'DELETE'
+                    })
+                    if (response.ok) {
+                      const result = await response.json()
+                      alert(`Cleared ${result.data.cleared} stale rides`)
+                      setActiveRide(null)
+                    }
+                  } catch (error) {
+                    console.error('Failed to clear rides:', error)
+                  }
+                }
+              }}
+              className="text-xs text-yellow-600 hover:text-yellow-700"
             >
-              Home
+              🧹 Clear Rides
             </button>
             <button 
               onClick={signOut}
@@ -358,8 +753,15 @@ export default function DashboardPage() {
             {activeRide.estimatedArrival && (
               <div className="bg-blue-50 rounded-lg p-3 mb-4">
                 <p className="text-sm text-blue-700">
-                  <span className="font-medium">Arriving in:</span> {activeRide.estimatedArrival}
+                  <span className="font-medium">
+                    {activeRide.status === 'arrived' ? 'Status:' : 'Arriving in:'}
+                  </span> {activeRide.estimatedArrival}
                 </p>
+                {activeRide.driverLocation && (
+                  <div className="text-xs text-blue-600 mt-1">
+                    📍 Location updated {new Date(activeRide.driverLocation.lastUpdated).toLocaleTimeString()}
+                  </div>
+                )}
               </div>
             )}
 
@@ -382,20 +784,45 @@ export default function DashboardPage() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex space-x-3">
-              <button
-                onClick={callDriver}
-                className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 flex items-center justify-center space-x-2"
-              >
-                <span>📞</span>
-                <span>Call Driver</span>
-              </button>
-              <button
-                onClick={handleCancelRide}
-                className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700"
-              >
-                Cancel Ride
-              </button>
+            <div className="space-y-3">
+              {/* Start Trip Button - Show when driver has arrived */}
+              {activeRide.status === 'arrived' && (
+                <button
+                  onClick={handleStartTrip}
+                  className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-green-700 transition-colors"
+                >
+                  🚀 Start Trip
+                </button>
+              )}
+              
+              {/* End Trip Button - Show when trip is in progress */}
+              {activeRide.status === 'in_progress' && (
+                <button
+                  onClick={handleEndTrip}
+                  className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors"
+                >
+                  🏁 End Trip
+                </button>
+              )}
+              
+              {/* Standard Action Buttons - Show for other statuses */}
+              {activeRide.status !== 'in_progress' && (
+                <div className="flex space-x-3">
+                  <button
+                    onClick={callDriver}
+                    className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 flex items-center justify-center space-x-2"
+                  >
+                    <span>📞</span>
+                    <span>Call Driver</span>
+                  </button>
+                  <button
+                    onClick={handleCancelRide}
+                    className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700"
+                  >
+                    Cancel Ride
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Carbon Savings */}
@@ -452,12 +879,65 @@ export default function DashboardPage() {
                   />
                 </div>
 
+                {/* Fare Estimate Display */}
+                {fareEstimate && (
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-lg">Fare Estimate</span>
+                      {fareEstimate.surgeMultiplier > 1 && (
+                        <span className="text-red-600 text-sm font-medium">
+                          {fareEstimate.surgeMultiplier}x Surge
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-1 text-sm text-gray-600">
+                      <div className="flex justify-between">
+                        <span>Base fare</span>
+                        <span>${fareEstimate.baseFare.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Distance ({fareEstimate.distance} mi)</span>
+                        <span>${fareEstimate.distanceFee.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Time (~{fareEstimate.estimatedDuration} min)</span>
+                        <span>${fareEstimate.timeFee.toFixed(2)}</span>
+                      </div>
+                      {fareEstimate.surgeMultiplier > 1 && (
+                        <div className="flex justify-between text-red-600">
+                          <span>Surge pricing</span>
+                          <span>+${(fareEstimate.totalEstimated - fareEstimate.subtotal).toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="border-t pt-2 flex justify-between items-center">
+                      <div>
+                        <span className="font-bold text-lg">${fareEstimate.totalEstimated.toFixed(2)}</span>
+                        <div className="text-xs text-green-600">
+                          🌱 Save {fareEstimate.carbonSaved} kg CO₂
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  disabled={isBookingRide || !userLocation}
-                  className="w-full bg-black text-white py-4 px-6 rounded-lg font-medium hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  disabled={isBookingRide || !userLocation || !fareEstimate}
+                  className="w-full bg-black text-white py-4 px-6 rounded-lg font-medium hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all"
                 >
-                  {isBookingRide ? 'Booking Ride...' : 'Book GoCab'}
+                  {isBookingRide ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                      <span>Finding Driver...</span>
+                    </div>
+                  ) : fareEstimate ? (
+                    `Book for $${fareEstimate.totalEstimated.toFixed(2)}`
+                  ) : (
+                    'Enter addresses to see fare'
+                  )}
                 </button>
               </form>
             </div>
@@ -479,6 +959,21 @@ export default function DashboardPage() {
           <button className="bg-white p-3 rounded-full shadow-lg hover:bg-gray-50">
             <span className="text-blue-600 text-xl">📍</span>
           </button>
+        </div>
+      )}
+
+
+
+      {/* Searching for Driver Overlay */}
+      {isSearchingForDriver && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center z-50 transition-opacity duration-300">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mb-4"></div>
+          <h2 className="text-white text-2xl font-semibold mb-2">
+            Searching for Drivers
+          </h2>
+          <p className="text-gray-300 text-lg">
+            Hold tight! We're finding the best ride for you.
+          </p>
         </div>
       )}
     </div>

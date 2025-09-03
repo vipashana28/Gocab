@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  // Only protect the dashboard route for demo purposes
-  if (request.nextUrl.pathname.startsWith('/dashboard')) {
-    // For demo mode, we'll just let it pass through
-    // In a real app, you'd check for authentication here
+  const { pathname } = request.nextUrl
+
+  // Protected routes (can add authentication checks here later)
+  if (pathname.startsWith('/dashboard')) {
+    // For now, just let dashboard through
+    // Later: add authentication checks here
     return NextResponse.next()
   }
-  
+
   return NextResponse.next()
 }
 
 export const config = {
-  // Only protect dashboard routes for now
+  // Run middleware on protected routes
   matcher: ['/dashboard/:path*']
 }

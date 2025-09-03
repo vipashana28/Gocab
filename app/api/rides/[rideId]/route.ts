@@ -3,6 +3,19 @@ import { connectToDatabase } from '@/lib/mongodb'
 import { Ride, Driver } from '@/lib/models'
 import mongoose from 'mongoose'
 
+// Helper function to calculate distance between two coordinates (Haversine formula)
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3959 // Earth's radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  return R * c // Distance in miles
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { rideId: string } }
@@ -150,35 +163,78 @@ export async function PATCH(
       }
     } else {
       // Update other fields
-      if (status) ride.status = status
+      if (status) {
+        // Use the model's updateStatus method for proper timestamp handling
+        if (status === 'completed') {
+          // Handle ride completion with trip summary
+          const completedAt = new Date()
+          const startedAt = ride.startedAt || ride.requestedAt
+          const duration = Math.round((completedAt.getTime() - startedAt.getTime()) / (1000 * 60)) // minutes
+          
+          // Calculate approximate distance (could be enhanced with real route data)
+          const distance = ride.route?.distance || calculateDistance(
+            ride.pickup.coordinates.latitude,
+            ride.pickup.coordinates.longitude,
+            ride.destination.coordinates.latitude,
+            ride.destination.coordinates.longitude
+          )
+          
+          await ride.updateStatus('completed', {
+            'route.actualDistance': distance,
+            'route.actualDuration': duration,
+            'route.actualFare': ride.pricing.totalEstimated, // For now, use estimated
+            'carbonFootprint.actualSaved': ride.carbonFootprint.estimatedSaved,
+            'pricing.totalActual': ride.pricing.totalEstimated
+          })
+        } else {
+          await ride.updateStatus(status)
+        }
+      }
+      
       if (driverLocation) {
         ride.driverLocation = {
           coordinates: driverLocation.coordinates,
           lastUpdated: new Date()
         }
+        await ride.save()
       }
     }
-
-    await ride.save()
 
     // Populate driver info for response
     await ride.populate('driverId', 'firstName lastName phone vehicle')
     
+    // Enhanced response data for completed rides
+    const responseData: any = {
+      id: ride._id,
+      rideId: ride.rideId,
+      status: ride.status,
+      statusDisplay: ride.statusDisplay,
+      pickup: ride.pickup,
+      destination: ride.destination,
+      driverContact: ride.driverContact,
+      driverLocation: ride.driverLocation,
+      pricing: ride.pricing,
+      carbonFootprint: ride.carbonFootprint,
+      cancelledAt: ride.cancelledAt,
+      cancellationReason: ride.cancellationReason
+    }
+
+    // Add trip summary for completed rides
+    if (ride.status === 'completed') {
+      responseData.tripSummary = {
+        duration: ride.totalDuration, // Virtual field
+        distance: ride.route.actualDistance || ride.route.distance,
+        actualFare: ride.route.actualFare || ride.pricing.totalEstimated,
+        carbonSaved: ride.carbonFootprint.actualSaved || ride.carbonFootprint.estimatedSaved,
+        completedAt: ride.completedAt
+      }
+    }
+    
     return NextResponse.json({
       success: true,
-      data: {
-        id: ride._id,
-        rideId: ride.rideId,
-        status: ride.status,
-        statusDisplay: ride.statusDisplay,
-        pickup: ride.pickup,
-        destination: ride.destination,
-        driverContact: ride.driverContact,
-        driverLocation: ride.driverLocation,
-        cancelledAt: ride.cancelledAt,
-        cancellationReason: ride.cancellationReason
-      },
-      message: status === 'cancelled' ? 'Ride cancelled successfully' : 'Ride updated successfully'
+      data: responseData,
+      message: status === 'cancelled' ? 'Ride cancelled successfully' : 
+               status === 'completed' ? 'Trip completed successfully' : 'Ride updated successfully'
     })
 
   } catch (error) {

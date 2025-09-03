@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path fill="#ca8a04" d="M50 0 C22.4 0 0 22.4 0 50 C0 88.4 50 100 50 100 C50 100 100 88.4 100 50 C100 22.4 77.6 0 50 0 Z"/>
+    <circle cx="50" cy="50" r="35" fill="white"/>
+    <text x="50" y="70" font-size="60" text-anchor="middle">🚗</text>
+  </g>
+</svg>

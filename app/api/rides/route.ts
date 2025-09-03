@@ -186,28 +186,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Calculate distance (simplified - in production use Google Maps Distance Matrix API)
-    const distance = calculateDistance(
-      pickup.coordinates.latitude,
-      pickup.coordinates.longitude,
-      destination.coordinates.latitude,
-      destination.coordinates.longitude
-    )
+    // Calculate distance and duration using OSRM
+    const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${pickup.coordinates.longitude},${pickup.coordinates.latitude};${destination.coordinates.longitude},${destination.coordinates.latitude}?overview=false`
+    const osrmResponse = await fetch(osrmUrl)
+    const routeData = await osrmResponse.json()
 
-    // Estimate duration (simplified - assume 30 mph average)
-    const estimatedDuration = Math.ceil((distance / 30) * 60) // minutes
+    if (routeData.code !== 'Ok' || !routeData.routes || routeData.routes.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Could not calculate a valid route for the given locations.' },
+        { status: 400 }
+      )
+    }
 
-    // Calculate estimated fare (base fare + distance fee)
+    const route = routeData.routes[0]
+    const distanceMeters = route.distance // in meters
+    const durationSeconds = route.duration // in seconds
+
+    const distanceMiles = distanceMeters * 0.000621371
+    const estimatedDurationMinutes = Math.round(durationSeconds / 60)
+
+    // Calculate estimated fare (base fare + distance fee + time fee)
     const baseFare = 3.50
-    const distanceFee = distance * 2.25 // $2.25 per mile
-    const timeFee = estimatedDuration * 0.15 // $0.15 per minute
+    const distanceFee = distanceMiles * 2.25 // $2.25 per mile
+    const timeFee = estimatedDurationMinutes * 0.15 // $0.15 per minute
     const estimatedFare = baseFare + distanceFee + timeFee
 
-    // Calculate carbon footprint (simplified - 0.404 kg CO2 per mile for average car)
-    const carbonSaved = distance * 0.404 * 0.6 // Assuming 40% reduction with rideshare
+    // Calculate carbon footprint
+    const carbonSaved = distanceMiles * 0.404 * 0.6 // Assuming 60% reduction with rideshare
 
     // Generate unique ride ID and pickup code
-    const rideId = 'RIDE_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6).toUpperCase()
+    const rideId =
+      'RIDE_' +
+      Date.now() +
+      '_' +
+      Math.random().toString(36).substr(2, 6).toUpperCase()
     const pickupCode = Math.floor(100000 + Math.random() * 900000).toString()
 
     // Create new ride
@@ -218,9 +230,9 @@ export async function POST(request: NextRequest) {
       pickup,
       destination,
       route: {
-        distance,
-        estimatedDuration,
-        estimatedFare
+        distance: distanceMiles,
+        estimatedDuration: estimatedDurationMinutes,
+        estimatedFare,
       },
       status: 'requested',
       requestedAt: new Date(),
@@ -235,7 +247,7 @@ export async function POST(request: NextRequest) {
         timeFee,
         totalEstimated: estimatedFare,
         currency: 'USD',
-        isSponsored: user.isSponsored
+        isSponsored: user?.isSponsored || false
       },
       userNotes,
       specialRequests,
@@ -320,18 +332,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
-// Helper function to calculate distance between two points (Haversine formula)
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 3959 // Earth's radius in miles
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-  const distance = R * c
-  return Math.round(distance * 100) / 100 // Round to 2 decimal places
 }

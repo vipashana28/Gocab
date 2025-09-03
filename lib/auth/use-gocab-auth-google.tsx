@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useSession, signIn as nextAuthSignIn, signOut as nextAuthSignOut } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 
 export interface GoCabUser {
   id: string
@@ -21,7 +20,6 @@ export interface GoCabUser {
 
 export function useGoCabAuth() {
   const { data: session, status } = useSession()
-  const router = useRouter()
   
   const [user, setUser] = useState<GoCabUser | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -56,7 +54,9 @@ export function useGoCabAuth() {
           if (response.ok) {
             const userData = await response.json()
             setUser(userData.data)
-            console.log('User synced with GoCab database:', userData.data)
+            if (process.env.NODE_ENV === 'development') {
+              console.log('User synced with GoCab database:', userData.data)
+            }
           } else {
             const errorData = await response.json()
             setError(errorData.error?.message || 'Failed to sync user data')
@@ -124,8 +124,8 @@ export function useGoCabAuth() {
     
     setTimeout(() => {
       setIsLoading(false)
-      console.log('🎯 Redirecting to dashboard...')
-      router.push('/dashboard')
+      console.log('🎯 Demo sign-in complete. Showing authenticated UI...')
+      // No manual redirect; authenticated UI will render on current page
     }, 200)
   }
 

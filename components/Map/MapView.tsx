@@ -3,71 +3,30 @@
 import { useEffect, useRef } from 'react'
 
 interface MapViewProps {
-  center: [number, number];
-  zoom: number;
-  pickupLocation?: { latitude: number; longitude: number; address?: string };
-  dropLocation?: { latitude: number; longitude: number; address?: string };
-  driverLocation?: { latitude: number; longitude: number };
-  showRoute?: boolean;
+  center: [number, number]
+  zoom: number
+  markers?: {
+    position: [number, number]
+    popupText: string
+    icon: 'pickup' | 'destination' | 'driver'
+  }[]
 }
 
-const MapView: React.FC<MapViewProps> = ({ 
-  center, 
-  zoom, 
-  pickupLocation, 
-  dropLocation, 
-  driverLocation, 
-  showRoute = false 
-}) => {
+const MapView = ({ center, zoom, markers = [] }: MapViewProps) => {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
+  const markersRef = useRef<any[]>([])
 
   useEffect(() => {
-    let isMounted = true
+    // Only run on client side
+    if (typeof window === 'undefined' || !mapRef.current) return
 
-    if (typeof window !== 'undefined' && mapRef.current && !mapInstanceRef.current) {
-      const mapElement = mapRef.current
-      
-      // Clear any existing Leaflet container
-      mapElement.innerHTML = ''
-      ;(mapElement as any)._leaflet_id = null // Clear Leaflet's internal reference
-      
-      // Dynamic import to avoid SSR issues
-      import('leaflet').then((L) => {
-        if (!isMounted) return // Don't proceed if component unmounted
-        
-        // Inject Leaflet CSS only once
-        if (!document.querySelector('link[href*="leaflet.css"]')) {
-          const link = document.createElement('link')
-          link.rel = 'stylesheet'
-          link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-          document.head.appendChild(link)
-        }
+    // Dynamic import of Leaflet to avoid SSR issues
+    const initMap = async () => {
+      try {
+        const L = await import('leaflet')
+        // CSS is imported via CDN in layout or handled by build system
 
-        // Add custom CSS to override Leaflet's z-indexes
-        if (!document.querySelector('#leaflet-z-index-override')) {
-          const style = document.createElement('style')
-          style.id = 'leaflet-z-index-override'
-          style.textContent = `
-            .leaflet-container {
-              z-index: 1 !important;
-            }
-            .leaflet-control-container {
-              z-index: 2 !important;
-            }
-            .leaflet-pane {
-              z-index: 1 !important;
-            }
-            .leaflet-popup {
-              z-index: 3 !important;
-            }
-            .leaflet-tooltip {
-              z-index: 3 !important;
-            }
-          `
-          document.head.appendChild(style)
-        }
-        
         // Fix for default markers
         delete (L.Icon.Default.prototype as any)._getIconUrl
         L.Icon.Default.mergeOptions({
@@ -76,231 +35,93 @@ const MapView: React.FC<MapViewProps> = ({
           shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
         })
 
-        try {
-          // Create map only if not already created and element is still mounted
-          if (!mapInstanceRef.current && isMounted) {
-            const map = L.map(mapElement).setView(center, zoom)
-            mapInstanceRef.current = map
+        // Create map only if it doesn't exist
+        if (!mapInstanceRef.current && mapRef.current) {
+          mapInstanceRef.current = L.map(mapRef.current).setView(center, zoom)
 
-            // Add standard OpenStreetMap tile layer
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map)
-
-            // Create custom icons
-            const createCustomIcon = (color: string, emoji: string, size: number = 40) => {
-              return L.divIcon({
-                className: 'custom-marker',
-                html: `
-                  <div style="
-                    width: ${size}px;
-                    height: ${size}px;
-                    background: ${color};
-                    border: 3px solid white;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: ${size * 0.4}px;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                    animation: markerPulse 2s infinite;
-                  ">
-                    ${emoji}
-                  </div>
-                  <style>
-                    @keyframes markerPulse {
-                      0%, 100% { transform: scale(1); }
-                      50% { transform: scale(1.1); }
-                    }
-                  </style>
-                `,
-                iconSize: [size, size],
-                iconAnchor: [size/2, size/2]
-              })
-            }
-
-            // Add user location marker (default green)
-            const userIcon = createCustomIcon('linear-gradient(135deg, #22c55e, #16a34a)', '👤', 35)
-            L.marker(center, { icon: userIcon })
-              .addTo(map)
-              .bindPopup(`
-                <div style="text-align: center; font-family: Inter, sans-serif;">
-                  <strong style="color: #16a34a;">📍 Your Location</strong><br>
-                  <small style="color: #6b7280;">Current position</small>
-                </div>
-              `)
-
-            // Add pickup location marker (blue)
-            if (pickupLocation) {
-              const pickupIcon = createCustomIcon('linear-gradient(135deg, #3b82f6, #1d4ed8)', '🚗', 45)
-              L.marker([pickupLocation.latitude, pickupLocation.longitude], { icon: pickupIcon })
-                .addTo(map)
-                .bindPopup(`
-                  <div style="text-align: center; font-family: Inter, sans-serif;">
-                    <strong style="color: #1d4ed8;">🚗 Pickup Point</strong><br>
-                    <small style="color: #6b7280;">${pickupLocation.address || 'Pickup location'}</small>
-                  </div>
-                `)
-            }
-
-            // Add drop location marker (red)
-            if (dropLocation) {
-              const dropIcon = createCustomIcon('linear-gradient(135deg, #ef4444, #dc2626)', '🎯', 45)
-              L.marker([dropLocation.latitude, dropLocation.longitude], { icon: dropIcon })
-                .addTo(map)
-                .bindPopup(`
-                  <div style="text-align: center; font-family: Inter, sans-serif;">
-                    <strong style="color: #dc2626;">🎯 Destination</strong><br>
-                    <small style="color: #6b7280;">${dropLocation.address || 'Drop location'}</small>
-                  </div>
-                `)
-            }
-
-            // Add driver location marker (golden)
-            if (driverLocation) {
-              const driverIcon = createCustomIcon('linear-gradient(135deg, #eab308, #ca8a04)', '🚙', 40)
-              L.marker([driverLocation.latitude, driverLocation.longitude], { icon: driverIcon })
-                .addTo(map)
-                .bindPopup(`
-                  <div style="text-align: center; font-family: Inter, sans-serif;">
-                    <strong style="color: #ca8a04;">🚙 Your Driver</strong><br>
-                    <small style="color: #6b7280;">Live location</small>
-                  </div>
-                `)
-            }
-
-            // Add route line if both pickup and drop locations exist
-            if (showRoute && pickupLocation && dropLocation) {
-              const routeLine = L.polyline([
-                [pickupLocation.latitude, pickupLocation.longitude],
-                [dropLocation.latitude, dropLocation.longitude]
-              ], {
-                color: '#22c55e',
-                weight: 4,
-                opacity: 0.8,
-                dashArray: '10, 5'
-              }).addTo(map)
-
-              // Fit map to show the route
-              map.fitBounds(routeLine.getBounds(), { padding: [50, 50] })
-            }
-          }
-        } catch (error) {
-          console.error('Error creating map:', error)
+          // Add OpenStreetMap tiles
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          }).addTo(mapInstanceRef.current)
         }
-      })
+
+        // Update map center and zoom
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.setView(center, zoom)
+        }
+
+      } catch (error) {
+        console.error('Error loading Leaflet map:', error)
+      }
     }
 
-    // Cleanup function
+    initMap()
+
+    // Cleanup on unmount
     return () => {
-      isMounted = false
       if (mapInstanceRef.current) {
-        try {
-          mapInstanceRef.current.remove()
-        } catch (e) {
-          console.log('Map cleanup error:', e)
-        }
+        mapInstanceRef.current.remove()
         mapInstanceRef.current = null
       }
     }
-  }, []) // Remove all deps to prevent re-initialization
+  }, [center, zoom])
 
-  // Update map view and markers when props change
   useEffect(() => {
-    if (mapInstanceRef.current) {
-      // Update center and zoom
-      mapInstanceRef.current.setView(center, zoom)
+    if (!mapInstanceRef.current || typeof window === 'undefined') return
+
+    const L = require('leaflet')
+
+    // Clear existing markers
+    markersRef.current.forEach(marker => {
+      mapInstanceRef.current?.removeLayer(marker)
+    })
+    markersRef.current = []
+
+    // Add new markers
+    markers.forEach(markerData => {
+      // Create custom icons
+      let iconHtml = ''
+      let iconColor = ''
       
-      // Clear existing markers
-      mapInstanceRef.current.eachLayer((layer: any) => {
-        if (layer instanceof (window as any).L.Marker) {
-          mapInstanceRef.current.removeLayer(layer)
-        }
+      switch (markerData.icon) {
+        case 'pickup':
+          iconHtml = '📍'
+          iconColor = '#3b82f6' // blue
+          break
+        case 'destination':
+          iconHtml = '🎯'
+          iconColor = '#ef4444' // red
+          break
+        case 'driver':
+          iconHtml = '🚗'
+          iconColor = '#eab308' // yellow
+          break
+        default:
+          iconHtml = '📌'
+          iconColor = '#6b7280' // gray
+      }
+
+      const customIcon = L.divIcon({
+        html: `<div style="background-color: ${iconColor}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">${iconHtml}</div>`,
+        className: 'custom-marker',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
       })
-      
-      // Re-add markers based on current props
-      import('leaflet').then((L) => {
-        if (!mapInstanceRef.current) return
-        
-        const createCustomIcon = (color: string, emoji: string, size: number = 40) => {
-          return L.divIcon({
-            className: 'custom-marker',
-            html: `
-              <div style="
-                width: ${size}px;
-                height: ${size}px;
-                background: ${color};
-                border: 3px solid white;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: ${size * 0.4}px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                animation: markerPulse 2s infinite;
-              ">
-                ${emoji}
-              </div>
-            `,
-            iconSize: [size, size],
-            iconAnchor: [size/2, size/2]
-          })
-        }
 
-        // Re-add user location
-        const userIcon = createCustomIcon('linear-gradient(135deg, #22c55e, #16a34a)', '👤', 35)
-        L.marker(center, { icon: userIcon }).addTo(mapInstanceRef.current)
+      const marker = L.marker(markerData.position, { icon: customIcon })
+        .addTo(mapInstanceRef.current)
+        .bindPopup(markerData.popupText)
 
-        // Re-add pickup marker
-        if (pickupLocation) {
-          const pickupIcon = createCustomIcon('linear-gradient(135deg, #3b82f6, #1d4ed8)', '🚗', 45)
-          L.marker([pickupLocation.latitude, pickupLocation.longitude], { icon: pickupIcon })
-            .addTo(mapInstanceRef.current)
-        }
+      markersRef.current.push(marker)
+    })
 
-        // Re-add drop marker
-        if (dropLocation) {
-          const dropIcon = createCustomIcon('linear-gradient(135deg, #ef4444, #dc2626)', '🎯', 45)
-          L.marker([dropLocation.latitude, dropLocation.longitude], { icon: dropIcon })
-            .addTo(mapInstanceRef.current)
-        }
-
-        // Re-add driver marker
-        if (driverLocation) {
-          const driverIcon = createCustomIcon('linear-gradient(135deg, #eab308, #ca8a04)', '🚙', 40)
-          L.marker([driverLocation.latitude, driverLocation.longitude], { icon: driverIcon })
-            .addTo(mapInstanceRef.current)
-        }
-
-        // Re-add route
-        if (showRoute && pickupLocation && dropLocation) {
-          const routeLine = L.polyline([
-            [pickupLocation.latitude, pickupLocation.longitude],
-            [dropLocation.latitude, dropLocation.longitude]
-          ], {
-            color: '#22c55e',
-            weight: 4,
-            opacity: 0.8,
-            dashArray: '10, 5'
-          }).addTo(mapInstanceRef.current)
-          
-          mapInstanceRef.current.fitBounds(routeLine.getBounds(), { padding: [50, 50] })
-        }
-      })
-    }
-  }, [center, zoom, pickupLocation, dropLocation, driverLocation, showRoute])
+  }, [markers])
 
   return (
     <div 
       ref={mapRef} 
-      style={{ 
-        height: '100%', 
-        width: '100%', 
-        backgroundColor: '#f0f0f0',
-        borderRadius: '8px',
-        position: 'relative',
-        zIndex: 1
-      }}
+      className="w-full h-full"
+      style={{ minHeight: '400px' }}
     />
   )
 }
