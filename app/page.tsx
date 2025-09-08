@@ -24,7 +24,12 @@ export default function HomePage() {
       if (process.env.NODE_ENV === 'development') {
         console.log('✅ User authenticated, redirecting to dashboard')
       }
-      router.push('/dashboard')
+      // Add small delay to prevent race conditions during component cleanup
+      const timeoutId = setTimeout(() => {
+        router.push('/dashboard')
+      }, 100)
+      
+      return () => clearTimeout(timeoutId)
     }
   }, [isAuthenticated, user, router])
 

@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: false, // Disabled to prevent Google Maps DOM conflicts
   swcMinify: true,
   env: {
     MONGODB_URI: process.env.MONGODB_URI,

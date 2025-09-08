@@ -5,6 +5,8 @@ import { useGoCabAuth } from '@/lib/auth/use-gocab-auth-google'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import MapView from '@/components/Map/MapView'
+import FareEstimation from '@/components/FareEstimation'
+
 import { geocodeAddress, getBestGeocodeResult, validateAddressInput, formatLocationForDisplay } from '@/lib/geocoding'
 
 interface ActiveRide {
@@ -65,7 +67,8 @@ export default function DashboardPage() {
   const [locationError, setLocationError] = useState<string | null>(null)
 
   const [fareEstimate, setFareEstimate] = useState<any>(null)
-  const [isCalculatingFare, setIsCalculatingFare] = useState(false)
+  const [routeData, setRouteData] = useState<any>(null)
+  // const [isCalculatingFare, setIsCalculatingFare] = useState(false) // Now handled by FareEstimation component
   const [isSearchingForDriver, setIsSearchingForDriver] = useState(false)
   const [isFirstLoad, setIsFirstLoad] = useState(true)
   const [fareError, setFareError] = useState<string | null>(null)
@@ -76,6 +79,10 @@ export default function DashboardPage() {
   const [showPickupOptions, setShowPickupOptions] = useState(false)
   const [showDestinationOptions, setShowDestinationOptions] = useState(false)
   const [isSelectingFromDropdown, setIsSelectingFromDropdown] = useState(false)
+  const [pickupSearchCompleted, setPickupSearchCompleted] = useState(false)
+  const [destinationSearchCompleted, setDestinationSearchCompleted] = useState(false)
+  const [isSearchingPickup, setIsSearchingPickup] = useState(false)
+  const [isSearchingDestination, setIsSearchingDestination] = useState(false)
 
 
   // Memoize map markers to prevent re-renders
@@ -133,12 +140,36 @@ export default function DashboardPage() {
     if (isAuthenticated && user) {
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
-          (position) => {
-            setUserLocation({
+          async (position) => {
+            const currentLocation = {
               latitude: position.coords.latitude,
               longitude: position.coords.longitude
-            })
+            }
+            setUserLocation(currentLocation)
             setLocationError(null)
+            
+            // Set current location as pickup coordinates
+            setPickupCoordinates(currentLocation)
+            
+            // Reverse geocode to get address for pickup
+            try {
+              const response = await fetch(`/api/geocoding?lat=${currentLocation.latitude}&lon=${currentLocation.longitude}&reverse=true`)
+              const data = await response.json()
+              if (data.success && data.data?.length > 0) {
+                const address = data.data[0].formattedAddress
+                setPickupAddress(address)
+                console.log('✅ Pickup address set:', address)
+              } else {
+                // Fallback if reverse geocoding fails
+                setPickupAddress(`Location: ${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`)
+              }
+            } catch (error) {
+              console.warn('Failed to reverse geocode current location:', error)
+              // Fallback if reverse geocoding fails
+              setPickupAddress(`Location: ${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`)
+            }
+            
+            console.log('✅ User location obtained and set as pickup:', position.coords)
           },
           (error) => {
             console.error('Error getting location:', error)
@@ -224,11 +255,20 @@ export default function DashboardPage() {
       if (type === 'pickup') {
         setPickupOptions([])
         setShowPickupOptions(false)
+        setIsSearchingPickup(false)
       } else {
         setDestinationOptions([])
         setShowDestinationOptions(false)
+        setIsSearchingDestination(false)
       }
       return
+    }
+
+    // Set loading state
+    if (type === 'pickup') {
+      setIsSearchingPickup(true)
+    } else {
+      setIsSearchingDestination(true)
     }
 
     try {
@@ -270,22 +310,38 @@ export default function DashboardPage() {
         if (type === 'pickup') {
           setPickupOptions(filteredResults.slice(0, 5)) // Limit to top 5 results
           setShowPickupOptions(filteredResults.length > 1)
+          setPickupSearchCompleted(true)
+          setIsSearchingPickup(false)
         } else {
           setDestinationOptions(filteredResults.slice(0, 5)) // Limit to top 5 results
           setShowDestinationOptions(filteredResults.length > 1)
+          setDestinationSearchCompleted(true)
+          setIsSearchingDestination(false)
         }
       } else {
-        // If no results, still show feedback
+        // Mark search as completed even if no results found
         if (type === 'pickup') {
           setPickupOptions([])
           setShowPickupOptions(false)
+          setPickupSearchCompleted(true)
+          setIsSearchingPickup(false)
         } else {
           setDestinationOptions([])
           setShowDestinationOptions(false)
+          setDestinationSearchCompleted(true)
+          setIsSearchingDestination(false)
         }
       }
     } catch (error) {
       console.error('Error fetching location options:', error)
+      // Mark search as completed even on error
+      if (type === 'pickup') {
+        setPickupSearchCompleted(true)
+        setIsSearchingPickup(false)
+      } else {
+        setDestinationSearchCompleted(true)
+        setIsSearchingDestination(false)
+      }
     }
   }
 
@@ -309,146 +365,10 @@ export default function DashboardPage() {
     setTimeout(() => setIsSelectingFromDropdown(false), 100)
   }
 
-  // Calculate fare estimate in real-time
-  const calculateFareEstimate = async (pickup: string, destination: string) => {
-    if (!pickup || !destination) {
-      setFareError(null)
-      return
-    }
+  // Note: Fare calculation is now completely handled by FareEstimation component
+  // This function has been removed to prevent conflicts
 
-    setIsCalculatingFare(true)
-    setFareError(null)
-    
-    try {
-      let pickupCoords, destinationCoords
-
-      // Use stored coordinates if available (from dropdown selection), otherwise geocode
-      if (pickupCoordinates && destinationCoordinates) {
-        pickupCoords = {
-          lat: pickupCoordinates.latitude,
-          lng: pickupCoordinates.longitude,
-        }
-        destinationCoords = {
-          lat: destinationCoordinates.latitude,
-          lng: destinationCoordinates.longitude,
-        }
-      } else {
-        // Fallback to geocoding if coordinates not available
-        const [pickupGeocode, destinationGeocode] = await Promise.all([
-          geocodeAddress(pickup),
-          geocodeAddress(destination)
-        ])
-
-        // More permissive validation with fallbacks
-        if (!pickupGeocode.success && !destinationGeocode.success) {
-          throw new Error('Unable to verify both addresses. Please check your internet connection.')
-        }
-        
-        if (!pickupGeocode.success) {
-          throw new Error('Unable to find pickup location. Please try a more specific pickup address.')
-        }
-        
-        if (!destinationGeocode.success) {
-          throw new Error('Unable to find destination. Please try a more specific destination address.')
-        }
-
-        if (pickupGeocode.data.length === 0) {
-          throw new Error('Pickup location not found. Try adding city/state or use a landmark nearby.')
-        }
-        
-        if (destinationGeocode.data.length === 0) {
-          throw new Error('Destination not found. Try adding city/state or use a landmark nearby.')
-        }
-
-        const pickupLocation = getBestGeocodeResult(pickupGeocode.data)
-        const destinationLocation = getBestGeocodeResult(destinationGeocode.data)
-
-        if (!pickupLocation) {
-          throw new Error('Pickup location unclear. Please be more specific or choose from suggestions.')
-        }
-        
-        if (!destinationLocation) {
-          throw new Error('Destination unclear. Please be more specific or choose from suggestions.')
-        }
-
-        pickupCoords = {
-          lat: pickupLocation.coordinates.latitude,
-          lng: pickupLocation.coordinates.longitude,
-        }
-
-        destinationCoords = {
-          lat: destinationLocation.coordinates.latitude,
-          lng: destinationLocation.coordinates.longitude,
-        }
-      }
-
-      const response = await fetch('/api/directions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          start: pickupCoords,
-          end: destinationCoords,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Unable to calculate route. Please try again in a moment.')
-      }
-
-      const result = await response.json()
-      if (!result.success) {
-        throw new Error(result.error || 'No valid route found between these locations. Please try different addresses.')
-      }
-
-      const { distance, duration } = result.data
-
-      // Use the real distance and duration for fare calculation
-      const baseFare = 3.50
-      const distanceFee = distance * 2.25
-      const timeFee = duration * 0.15 // Assuming $0.15 per minute
-      const totalEstimated = baseFare + distanceFee + timeFee
-
-      // Mock surge pricing (peak hours)
-      const currentHour = new Date().getHours()
-      const isPeakHour =
-        (currentHour >= 7 && currentHour <= 9) ||
-        (currentHour >= 17 && currentHour <= 19)
-      const surgeMultiplier = isPeakHour ? 1.5 : 1.0
-
-      const estimate = {
-        distance: distance,
-        baseFare,
-        distanceFee: Math.round(distanceFee * 100) / 100,
-        timeFee: Math.round(timeFee * 100) / 100,
-        subtotal: Math.round(totalEstimated * 100) / 100,
-        surgeMultiplier,
-        totalEstimated: Math.round(totalEstimated * surgeMultiplier * 100) / 100,
-        estimatedDuration: duration,
-        carbonSaved: Math.round(distance * 0.404 * 0.6 * 100) / 100,
-      }
-
-      setFareEstimate(estimate)
-    } catch (error) {
-      console.error('Error calculating fare:', error)
-      setFareEstimate(null) // Clear estimate on error
-      
-      // Set user-friendly error message
-      if (error instanceof Error) {
-        setFareError(error.message)
-      } else {
-        setFareError('Unable to calculate fare. Please check your addresses and try again.')
-      }
-    } finally {
-      setIsCalculatingFare(false)
-    }
-  }
-
-  // Retry fare calculation
-  const retryFareCalculation = () => {
-    if (pickupAddress && destinationAddress) {
-      calculateFareEstimate(pickupAddress, destinationAddress)
-    }
-  }
+  // Note: Retry functionality is now handled within FareEstimation component
 
   // Handle location input with debouncing
   useEffect(() => {
@@ -475,12 +395,16 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isSelectingFromDropdown) {
       setPickupCoordinates(null)
+      setPickupSearchCompleted(false) // Reset search state when typing
+      setIsSearchingPickup(false) // Reset loading state
     }
   }, [pickupAddress, isSelectingFromDropdown])
 
   useEffect(() => {
     if (!isSelectingFromDropdown) {
       setDestinationCoordinates(null)
+      setDestinationSearchCompleted(false) // Reset search state when typing
+      setIsSearchingDestination(false) // Reset loading state
     }
   }, [destinationAddress, isSelectingFromDropdown])
 
@@ -498,19 +422,22 @@ export default function DashboardPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Real-time fare calculation when addresses change
+  // Note: Fare calculation is now handled by FareEstimation component
+  // This effect is disabled to prevent conflicts
+  /*
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       if (pickupAddress && destinationAddress && !showPickupOptions && !showDestinationOptions) {
         calculateFareEstimate(pickupAddress, destinationAddress)
       } else {
         setFareEstimate(null)
-        setFareError(null) // Clear errors when addresses are incomplete
+        setFareError(null)
       }
-    }, 1500) // Longer debounce for geocoding (1.5 seconds)
+    }, 1500)
 
     return () => clearTimeout(debounceTimer)
   }, [pickupAddress, destinationAddress, showPickupOptions, showDestinationOptions])
+  */
 
   // Load ride history
   
@@ -518,9 +445,34 @@ export default function DashboardPage() {
   useEffect(() => {
     if (activeRide && activeRide.status !== 'completed' && activeRide.status !== 'cancelled') {
       const interval = setInterval(() => {
-        // TODO: Implement real driver tracking API calls
-        console.log('Would fetch real driver location updates here')
-      }, 5000) // Update every 5 seconds
+        // Simulate driver movement towards pickup location
+        if (activeRide.driverLocation && activeRide.pickup?.coordinates) {
+          const driverLat = activeRide.driverLocation.coordinates.latitude
+          const driverLng = activeRide.driverLocation.coordinates.longitude
+          const pickupLat = activeRide.pickup.coordinates.latitude
+          const pickupLng = activeRide.pickup.coordinates.longitude
+          
+          // Calculate direction towards pickup (simplified)
+          const latDiff = pickupLat - driverLat
+          const lngDiff = pickupLng - driverLng
+          
+          // Move driver slightly towards pickup (simulate movement)
+          const moveStep = 0.0001 // Small step for gradual movement
+          const newLat = driverLat + (latDiff > 0 ? moveStep : -moveStep)
+          const newLng = driverLng + (lngDiff > 0 ? moveStep : -moveStep)
+          
+          // Update driver location
+          setActiveRide(prev => prev ? {
+            ...prev,
+            driverLocation: {
+              coordinates: { latitude: newLat, longitude: newLng },
+              lastUpdated: new Date()
+            }
+          } : null)
+          
+          console.log('🚗 Driver moving towards pickup:', { lat: newLat, lng: newLng })
+        }
+      }, 3000) // Update every 3 seconds for visible movement
 
       return () => clearInterval(interval)
     }
@@ -814,11 +766,19 @@ export default function DashboardPage() {
     <div className="relative h-screen w-full overflow-hidden bg-gray-900">
       
       {/* Full Screen Map */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0" style={{ width: '100vw', height: '100vh' }}>
         <MapView 
+          key="main-map"
           center={[mapCenter.latitude, mapCenter.longitude]} 
           zoom={13}
           markers={markers}
+          polylineRoute={routeData ? {
+            polyline: routeData.polyline,
+            color: '#2563eb',
+            weight: 4,
+            opacity: 0.8
+          } : undefined}
+          fitBounds={!!routeData}
         />
       </div>
 
@@ -833,7 +793,7 @@ export default function DashboardPage() {
                 className="w-full h-full"
               />
             </div>
-          <h1 className="text-lg font-bold text-gray-900">GoCab Dashboard</h1>
+          <h1 className="text-lg font-bold text-gray-900">GoCabs.xyz</h1>
           </div>
           <div className="flex items-center space-x-3">
             <button 
@@ -1014,7 +974,7 @@ export default function DashboardPage() {
                   </label>
                   <input
                     type="text"
-                    value={pickupAddress}
+                    value={pickupAddress || ''}
                     onChange={(e) => setPickupAddress(e.target.value)}
                     placeholder="Enter pickup address"
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1022,7 +982,8 @@ export default function DashboardPage() {
                   />
                   
                   {/* Pickup Location Options Dropdown */}
-                  {pickupAddress.length >= 2 && (
+
+                  {(pickupAddress && pickupAddress.length >= 2 && (pickupOptions.length > 0 || isSearchingPickup || (pickupSearchCompleted && pickupAddress.length >= 3))) && (
                     <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
                       {pickupOptions.length > 0 ? (
                         pickupOptions.map((option, index) => (
@@ -1046,11 +1007,19 @@ export default function DashboardPage() {
                           </button>
                         ))
                       ) : (
-                        pickupAddress.length >= 3 && (
-                          <div className="px-3 py-2 text-sm text-gray-500">
-                            No suggestions found. Try adding city/area name.
-                          </div>
-                        )
+                        <>
+                          {isSearchingPickup && pickupAddress && pickupAddress.length >= 2 && (
+                            <div className="px-3 py-2 text-sm text-gray-500 flex items-center space-x-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                              <span>Searching locations...</span>
+                            </div>
+                          )}
+                          {pickupAddress && pickupAddress.length >= 3 && pickupSearchCompleted && !isSearchingPickup && (
+                            <div className="px-3 py-2 text-sm text-gray-500">
+                              No suggestions found. Try adding city/area name.
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
@@ -1062,7 +1031,7 @@ export default function DashboardPage() {
                   </label>
                   <input
                     type="text"
-                    value={destinationAddress}
+                    value={destinationAddress || ''}
                     onChange={(e) => setDestinationAddress(e.target.value)}
                     placeholder="Where to?"
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1070,7 +1039,7 @@ export default function DashboardPage() {
                   />
                   
                   {/* Destination Location Options Dropdown */}
-                  {destinationAddress.length >= 2 && (
+                  {(destinationAddress && destinationAddress.length >= 2 && (destinationOptions.length > 0 || isSearchingDestination || (destinationSearchCompleted && destinationAddress.length >= 3))) && (
                     <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
                       {destinationOptions.length > 0 ? (
                         destinationOptions.map((option, index) => (
@@ -1094,88 +1063,50 @@ export default function DashboardPage() {
                           </button>
                         ))
                       ) : (
-                        destinationAddress.length >= 3 && (
-                          <div className="px-3 py-2 text-sm text-gray-500">
-                            No suggestions found. Try adding city/area name.
-                          </div>
-                        )
+                        <>
+                          {isSearchingDestination && destinationAddress && destinationAddress.length >= 2 && (
+                            <div className="px-3 py-2 text-sm text-gray-500 flex items-center space-x-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                              <span>Searching locations...</span>
+                            </div>
+                          )}
+                          {destinationAddress && destinationAddress.length >= 3 && destinationSearchCompleted && !isSearchingDestination && (
+                            <div className="px-3 py-2 text-sm text-gray-500">
+                              No suggestions found. Try adding city/area name.
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* Fare Error Display */}
-                {fareError && (
-                  <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
-                    <div className="flex items-start space-x-3">
-                      <div className="w-5 h-5 text-red-500 mt-0.5">
-                        <svg fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-red-800 font-medium text-sm">Unable to calculate fare</h4>
-                        <p className="text-red-700 text-sm mt-1">{fareError}</p>
-                        <button
-                          onClick={retryFareCalculation}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium mt-2 underline"
-                        >
-                          Try again
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* Note: Fare error display and loading are now handled by FareEstimation component */}
 
-                {/* Fare Calculation Loading */}
-                {isCalculatingFare && !fareError && (
-                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                      <span className="text-blue-800 text-sm">Calculating fare...</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Fare Estimate Display */}
-                {fareEstimate && !fareError && (
-                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-lg">Fare Estimate</span>
-                      {fareEstimate.surgeMultiplier > 1 && (
-                        <span className="text-red-600 text-sm font-medium">
-                          {fareEstimate.surgeMultiplier}x Surge
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <div className="flex justify-between">
-                        <span>Base fare</span>
-                        <span>${fareEstimate.baseFare.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Distance ({fareEstimate.distance} mi)</span>
-                        <span>${fareEstimate.distanceFee.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Time (~{fareEstimate.estimatedDuration} min)</span>
-                        <span>${fareEstimate.timeFee.toFixed(2)}</span>
-                      </div>
-                      {fareEstimate.surgeMultiplier > 1 && (
-                        <div className="flex justify-between text-red-600">
-                          <span>Surge pricing</span>
-                          <span>+${(fareEstimate.totalEstimated - fareEstimate.subtotal).toFixed(2)}</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="border-t pt-2 flex justify-between items-center">
-                      <div>
-                        <span className="font-bold text-lg">${fareEstimate.totalEstimated.toFixed(2)}</span>
-                        <div className="text-xs text-green-600">
-                          Save {fareEstimate.carbonSaved} kg CO₂
-                        </div>
+                {/* Fare Estimation Component - Only show when both addresses are meaningful */}
+                {pickupAddress && pickupAddress.length > 5 && destinationAddress && destinationAddress.length > 5 ? (
+                  <FareEstimation 
+                    pickup={{
+                      address: pickupAddress,
+                      coordinates: pickupCoordinates || userLocation
+                    }}
+                    destination={{
+                      address: destinationAddress,
+                      coordinates: destinationCoordinates
+                    }}
+                    onRouteCalculated={(routeInfo) => {
+                      setFareEstimate(routeInfo.fareEstimate)
+                      setRouteData(routeInfo)
+                      setFareError(null)
+                    }}
+                  />
+                ) : (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-center text-gray-500">
+                      <div className="text-sm">
+                        {!pickupAddress || pickupAddress.length <= 5 ? 
+                          'Waiting for pickup location...' : 
+                          'Enter destination to see fare estimate'}
                       </div>
                     </div>
                   </div>
@@ -1191,12 +1122,10 @@ export default function DashboardPage() {
                       <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
                       <span>Finding Driver...</span>
                     </div>
-                  ) : fareError ? (
-                    'Fix address errors to continue'
                   ) : fareEstimate ? (
-                    `Book for $${fareEstimate.totalEstimated.toFixed(2)}`
+                    `🌱 Book Eco-Friendly Ride`
                   ) : (
-                    'Enter addresses to see fare'
+                    'Enter destination to see impact'
                   )}
                 </button>
               </form>
@@ -1207,7 +1136,7 @@ export default function DashboardPage() {
               onClick={() => setShowBookingForm(true)}
               className="w-full bg-green-600 text-white py-4 px-6 rounded-2xl font-medium text-lg shadow-2xl hover:bg-green-700"
             >
-              Where to?
+              🌱 Where to? (Eco-Friendly)
             </button>
           )}
         </div>

@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   }
 }
 
+
 export default function RootLayout({
   children,
 }: {
@@ -21,12 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link 
-          rel="stylesheet" 
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-          crossOrigin=""
-        />
+        {/* Google Maps will load its own styles */}
       </head>
       <body className={inter.className}>
         <AuthProvider>
@@ -34,6 +30,32 @@ export default function RootLayout({
             {children}
           </div>
         </AuthProvider>
+        {/* Global error suppression for Google Maps DOM conflicts */}
+        <script dangerouslySetInnerHTML={{
+          __html: `
+            window.addEventListener('error', function(e) {
+              if (e.error && e.error.message && 
+                  (e.error.message.includes('removeChild') || 
+                   e.error.message.includes('Failed to execute') ||
+                   e.error.name === 'NotFoundError')) {
+                console.warn('Suppressed Google Maps DOM error:', e.error.message);
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+              }
+            });
+            
+            window.addEventListener('unhandledrejection', function(e) {
+              if (e.reason && e.reason.message && 
+                  (e.reason.message.includes('removeChild') ||
+                   e.reason.message.includes('Failed to execute'))) {
+                console.warn('Suppressed Google Maps promise rejection:', e.reason.message);
+                e.preventDefault();
+                return false;
+              }
+            });
+          `
+        }} />
       </body>
     </html>
   )

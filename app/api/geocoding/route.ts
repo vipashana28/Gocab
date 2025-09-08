@@ -6,36 +6,66 @@ export async function GET(request: NextRequest) {
     const address = searchParams.get('address')
     const userLat = searchParams.get('lat')
     const userLon = searchParams.get('lon')
+    const reverse = searchParams.get('reverse') === 'true'
     
-    if (!address) {
+    // For reverse geocoding, we need lat/lon instead of address
+    if (reverse && (!userLat || !userLon)) {
+      return NextResponse.json(
+        { success: false, error: 'Latitude and longitude are required for reverse geocoding' },
+        { status: 400 }
+      )
+    }
+    
+    if (!reverse && !address) {
       return NextResponse.json(
         { success: false, error: 'Address parameter is required' },
         { status: 400 }
       )
     }
 
-    // Use Nominatim (OpenStreetMap) geocoding service - improved approach
-    let nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=8&addressdetails=1&extratags=1`
-    
-    // Add geographic bias if user location is provided
-    if (userLat && userLon) {
-      nominatimUrl += `&viewbox=${parseFloat(userLon) - 0.5},${parseFloat(userLat) + 0.5},${parseFloat(userLon) + 0.5},${parseFloat(userLat) - 0.5}&bounded=0`
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY
+    if (!apiKey) {
+      return NextResponse.json(
+        { success: false, error: 'Google Maps API key not configured' },
+        { status: 500 }
+      )
     }
-    // NOTE: Removed country restriction as it was too limiting even for valid addresses
-    
-    const response = await fetch(nominatimUrl, {
-      headers: {
-        'User-Agent': 'GoCab/1.0 (Ride booking app)', // Required by Nominatim
+
+    // Build Google Geocoding API URL
+    let geocodingUrl
+    if (reverse) {
+      // Reverse geocoding: lat,lng to address
+      geocodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLat},${userLon}&key=${apiKey}`
+    } else {
+      // Forward geocoding: address to lat,lng
+      geocodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address || '')}&key=${apiKey}`
+      
+      // Add geographic bias if user location is provided
+      if (userLat && userLon) {
+        geocodingUrl += `&region=us&bounds=${parseFloat(userLat) - 0.1},${parseFloat(userLon) - 0.1}|${parseFloat(userLat) + 0.1},${parseFloat(userLon) + 0.1}`
       }
-    })
+    }
+    
+    const response = await fetch(geocodingUrl)
 
     if (!response.ok) {
-      throw new Error(`Nominatim API error: ${response.status}`)
+      throw new Error(`Google Geocoding API error: ${response.status}`)
     }
 
-    const results = await response.json()
+    const data = await response.json()
 
-    if (!results || results.length === 0) {
+    if (data.status !== 'OK') {
+      if (data.status === 'ZERO_RESULTS') {
+        return NextResponse.json({
+          success: false,
+          error: 'No results found for this address',
+          data: []
+        })
+      }
+      throw new Error(`Google Geocoding API error: ${data.status}`)
+    }
+
+    if (!data.results || data.results.length === 0) {
       return NextResponse.json({
         success: false,
         error: 'No results found for this address',
@@ -43,30 +73,40 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Transform Nominatim results to our format
-    const locations = results.map((result: any) => ({
-      address: result.display_name,
-      coordinates: {
-        latitude: parseFloat(result.lat),
-        longitude: parseFloat(result.lon)
-      },
-      details: {
-        house_number: result.address?.house_number,
-        road: result.address?.road,
-        city: result.address?.city || result.address?.town || result.address?.village,
-        state: result.address?.state,
-        postcode: result.address?.postcode,
-        country: result.address?.country,
-        type: result.type, // e.g., 'house', 'building', 'way'
-        importance: parseFloat(result.importance || 0)
-      },
-      boundingBox: result.boundingbox ? {
-        north: parseFloat(result.boundingbox[1]),
-        south: parseFloat(result.boundingbox[0]),
-        east: parseFloat(result.boundingbox[3]),
-        west: parseFloat(result.boundingbox[2])
-      } : null
-    }))
+    // Transform Google Geocoding results to our format
+    const locations = data.results.map((result: any) => {
+      const addressComponents = result.address_components || []
+      const getComponent = (types: string[]) => {
+        const component = addressComponents.find((comp: any) => 
+          types.some((type: string) => comp.types.includes(type))
+        )
+        return component?.long_name || component?.short_name
+      }
+
+      return {
+        address: result.formatted_address,
+        coordinates: {
+          latitude: result.geometry.location.lat,
+          longitude: result.geometry.location.lng
+        },
+        details: {
+          house_number: getComponent(['street_number']),
+          road: getComponent(['route']),
+          city: getComponent(['locality', 'sublocality']),
+          state: getComponent(['administrative_area_level_1']),
+          postcode: getComponent(['postal_code']),
+          country: getComponent(['country']),
+          type: result.types[0] || 'unknown',
+          importance: 1.0 - (data.results.indexOf(result) * 0.1) // Higher for earlier results
+        },
+        boundingBox: result.geometry.viewport ? {
+          north: result.geometry.viewport.northeast.lat,
+          south: result.geometry.viewport.southwest.lat,
+          east: result.geometry.viewport.northeast.lng,
+          west: result.geometry.viewport.southwest.lng
+        } : undefined
+      }
+    })
 
     return NextResponse.json({
       success: true,
@@ -74,7 +114,7 @@ export async function GET(request: NextRequest) {
       meta: {
         query: address,
         resultsCount: locations.length,
-        provider: 'Nominatim/OpenStreetMap'
+        provider: 'Google Maps Geocoding API'
       }
     })
 
@@ -104,22 +144,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Nominatim reverse geocoding
-    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1&extratags=1`
-    
-    const response = await fetch(nominatimUrl, {
-      headers: {
-        'User-Agent': 'GoCab/1.0 (Ride booking app)',
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error(`Nominatim API error: ${response.status}`)
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY
+    if (!apiKey) {
+      return NextResponse.json(
+        { success: false, error: 'Google Maps API key not configured' },
+        { status: 500 }
+      )
     }
 
-    const result = await response.json()
+    // Google Reverse Geocoding API
+    const geocodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`
+    
+    const response = await fetch(geocodingUrl)
 
-    if (!result || result.error) {
+    if (!response.ok) {
+      throw new Error(`Google Geocoding API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (data.status !== 'OK') {
+      if (data.status === 'ZERO_RESULTS') {
+        return NextResponse.json({
+          success: false,
+          error: 'No address found for these coordinates',
+          data: null
+        })
+      }
+      throw new Error(`Google Geocoding API error: ${data.status}`)
+    }
+
+    if (!data.results || data.results.length === 0) {
       return NextResponse.json({
         success: false,
         error: 'No address found for these coordinates',
@@ -127,20 +182,30 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Use the first (most precise) result
+    const result = data.results[0]
+    const addressComponents = result.address_components || []
+    const getComponent = (types: string[]) => {
+      const component = addressComponents.find((comp: any) => 
+        types.some((type: string) => comp.types.includes(type))
+      )
+      return component?.long_name || component?.short_name
+    }
+
     const location = {
-      address: result.display_name,
+      address: result.formatted_address,
       coordinates: {
-        latitude: parseFloat(result.lat),
-        longitude: parseFloat(result.lon)
+        latitude: result.geometry.location.lat,
+        longitude: result.geometry.location.lng
       },
       details: {
-        house_number: result.address?.house_number,
-        road: result.address?.road,
-        city: result.address?.city || result.address?.town || result.address?.village,
-        state: result.address?.state,
-        postcode: result.address?.postcode,
-        country: result.address?.country,
-        type: result.type
+        house_number: getComponent(['street_number']),
+        road: getComponent(['route']),
+        city: getComponent(['locality', 'sublocality']),
+        state: getComponent(['administrative_area_level_1']),
+        postcode: getComponent(['postal_code']),
+        country: getComponent(['country']),
+        type: result.types[0] || 'unknown'
       }
     }
 
@@ -149,7 +214,7 @@ export async function POST(request: NextRequest) {
       data: location,
       meta: {
         query: { latitude, longitude },
-        provider: 'Nominatim/OpenStreetMap'
+        provider: 'Google Maps Geocoding API'
       }
     })
 

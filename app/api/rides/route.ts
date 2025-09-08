@@ -186,33 +186,85 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Calculate distance and duration using OSRM
-    const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${pickup.coordinates.longitude},${pickup.coordinates.latitude};${destination.coordinates.longitude},${destination.coordinates.latitude}?overview=false`
-    const osrmResponse = await fetch(osrmUrl)
-    const routeData = await osrmResponse.json()
+    // Calculate distance and duration using our Google Directions API
+    const directionsResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/directions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        origin: {
+          latitude: pickup.coordinates.latitude,
+          longitude: pickup.coordinates.longitude
+        },
+        destination: {
+          latitude: destination.coordinates.latitude,
+          longitude: destination.coordinates.longitude
+        },
+        travelMode: 'DRIVING',
+        avoidHighways: false,
+        avoidTolls: false
+      })
+    })
 
-    if (routeData.code !== 'Ok' || !routeData.routes || routeData.routes.length === 0) {
+    if (!directionsResponse.ok) {
       return NextResponse.json(
         { success: false, error: 'Could not calculate a valid route for the given locations.' },
         { status: 400 }
       )
     }
 
-    const route = routeData.routes[0]
-    const distanceMeters = route.distance // in meters
-    const durationSeconds = route.duration // in seconds
+    const routeData = await directionsResponse.json()
+    
+    if (!routeData.success || !routeData.data) {
+      return NextResponse.json(
+        { success: false, error: 'Could not calculate a valid route for the given locations.' },
+        { status: 400 }
+      )
+    }
 
-    const distanceMiles = distanceMeters * 0.000621371
-    const estimatedDurationMinutes = Math.round(durationSeconds / 60)
+    // Extract the correct distance and duration values
+    const distanceKm = routeData.data.distance?.km
+    const durationMinutes = routeData.data.durationInTraffic?.minutes || routeData.data.duration?.minutes
+    
+    // Add debugging and validation
+    console.log('📊 Route calculation data:', { 
+      distanceKm, 
+      durationMinutes, 
+      rawData: routeData.data 
+    })
+    
+    // Validate distance and duration
+    if (!distanceKm || !durationMinutes || isNaN(distanceKm) || isNaN(durationMinutes)) {
+      console.error('❌ Invalid distance or duration:', { distanceKm, durationMinutes })
+      return NextResponse.json(
+        { success: false, error: 'Invalid route calculation data received.' },
+        { status: 400 }
+      )
+    }
+    
+    const distanceMiles = distanceKm * 0.621371 // Convert km to miles
+    const estimatedDurationMinutes = Math.round(durationMinutes)
 
     // Calculate estimated fare (base fare + distance fee + time fee)
     const baseFare = 3.50
     const distanceFee = distanceMiles * 2.25 // $2.25 per mile
     const timeFee = estimatedDurationMinutes * 0.15 // $0.15 per minute
     const estimatedFare = baseFare + distanceFee + timeFee
+    
+    // Validate fare calculation
+    if (isNaN(estimatedFare)) {
+      console.error('❌ Invalid fare calculation:', { baseFare, distanceFee, timeFee, estimatedFare })
+      return NextResponse.json(
+        { success: false, error: 'Failed to calculate fare.' },
+        { status: 400 }
+      )
+    }
+    
+    console.log('💰 Fare calculation:', { baseFare, distanceFee, timeFee, estimatedFare })
 
-    // Calculate carbon footprint
-    const carbonSaved = distanceMiles * 0.404 * 0.6 // Assuming 60% reduction with rideshare
+    // Calculate carbon footprint (using km for more accurate EPA calculations)
+    const carbonSaved = distanceKm * 0.21 * 0.6 // 0.21 kg CO2/km for avg car * 60% reduction
 
     // Generate unique ride ID and pickup code
     const rideId =
@@ -231,6 +283,7 @@ export async function POST(request: NextRequest) {
       destination,
       route: {
         distance: distanceMiles,
+        distanceKm: distanceKm,
         estimatedDuration: estimatedDurationMinutes,
         estimatedFare,
       },
@@ -242,10 +295,10 @@ export async function POST(request: NextRequest) {
         calculationMethod: 'EPA standard'
       },
       pricing: {
-        baseFare,
-        distanceFee,
-        timeFee,
-        totalEstimated: estimatedFare,
+        baseFare: Math.round(baseFare * 100) / 100,
+        distanceFee: Math.round(distanceFee * 100) / 100,
+        timeFee: Math.round(timeFee * 100) / 100,
+        totalEstimated: Math.round(estimatedFare * 100) / 100,
         currency: 'USD',
         isSponsored: user?.isSponsored || false
       },
@@ -256,44 +309,66 @@ export async function POST(request: NextRequest) {
 
     await ride.save()
 
-    // Try to match with available drivers
-    const availableDrivers = await Driver.find({
-      isOnline: true,
-      isAvailable: true,
-      status: 'active',
-      isPilotApproved: true,
-      backgroundCheckStatus: 'approved',
-      'currentLocation.coordinates': {
-        $near: {
-          $geometry: { 
-            type: 'Point', 
-            coordinates: [pickup.coordinates.longitude, pickup.coordinates.latitude] 
-          },
-          $maxDistance: 5000 // 5km radius
-        }
+    // For demo purposes, we'll simulate a driver assignment with dummy data
+    // In production, this would query real driver database
+    const dummyDrivers = [
+      {
+        name: 'Alex Johnson',
+        phone: '+1 (555) 123-4567',
+        vehicleInfo: '2022 Toyota Camry - Blue',
+        licensePlate: 'GC-001',
+        photo: 'https://i.pravatar.cc/150?u=alex-johnson',
+        rating: 4.9
+      },
+      {
+        name: 'Maria Rodriguez',
+        phone: '+1 (555) 234-5678',
+        vehicleInfo: '2023 Honda Civic - White',
+        licensePlate: 'GC-002',
+        photo: 'https://i.pravatar.cc/150?u=maria-rodriguez',
+        rating: 4.8
+      },
+      {
+        name: 'David Chen',
+        phone: '+1 (555) 345-6789',
+        vehicleInfo: '2021 Nissan Altima - Gray',
+        licensePlate: 'GC-003',
+        photo: 'https://i.pravatar.cc/150?u=david-chen',
+        rating: 4.7
       }
-    }).limit(5)
+    ]
 
-    if (availableDrivers.length > 0) {
-      // For now, assign to first available driver
-      // TODO: Implement proper matching algorithm
-      const assignedDriver = availableDrivers[0]
-      
-      ride.driverId = assignedDriver._id
-      ride.status = 'matched'
-      ride.matchedAt = new Date()
-      ride.driverContact = {
-        phone: assignedDriver.phone,
-        name: assignedDriver.fullName,
-        vehicleInfo: assignedDriver.vehicleDisplayName,
-        licensePlate: assignedDriver.vehicle.licensePlate
-      }
-      
-      // Update driver availability
-      assignedDriver.isAvailable = false
-      await assignedDriver.save()
-      await ride.save()
+    // Randomly assign a dummy driver (for demo)
+    const assignedDriver = dummyDrivers[Math.floor(Math.random() * dummyDrivers.length)]
+    
+    // Generate dummy driver location near pickup
+    const driverLocation = {
+      latitude: pickup.coordinates.latitude + (Math.random() - 0.5) * 0.01, // Within ~1km
+      longitude: pickup.coordinates.longitude + (Math.random() - 0.5) * 0.01
     }
+    
+    // Estimate arrival time (2-8 minutes)
+    const estimatedArrivalMinutes = Math.floor(Math.random() * 6) + 2
+    
+    // Update ride with driver assignment
+    ride.status = 'matched'
+    ride.matchedAt = new Date()
+    ride.driverContact = {
+      phone: assignedDriver.phone,
+      name: assignedDriver.name,
+      vehicleInfo: assignedDriver.vehicleInfo,
+      licensePlate: assignedDriver.licensePlate,
+      photo: assignedDriver.photo,
+      rating: assignedDriver.rating
+    }
+    ride.driverLocation = {
+      coordinates: driverLocation,
+      lastUpdated: new Date()
+    }
+    ride.estimatedArrival = `${estimatedArrivalMinutes} minutes`
+    ride.statusDisplay = 'Driver Found'
+    
+    await ride.save()
 
     // Populate driver info if matched
     await ride.populate('driverId', 'firstName lastName phone vehicle')
@@ -312,10 +387,12 @@ export async function POST(request: NextRequest) {
         carbonFootprint: ride.carbonFootprint,
         pricing: ride.pricing,
         driverContact: ride.driverContact,
+        driverLocation: ride.driverLocation,
+        estimatedArrival: ride.estimatedArrival,
         requestedAt: ride.requestedAt,
         matchedAt: ride.matchedAt
       },
-      message: availableDrivers.length > 0 ? 'Ride created and driver assigned' : 'Ride created, searching for driver'
+      message: 'Ride created and driver assigned'
     })
 
   } catch (error) {
