@@ -91,6 +91,13 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Creating new ride request...')
     
+    // Test environment variables
+    console.log('Environment variables check:', {
+      hasMongoUri: !!process.env.MONGODB_URI,
+      hasNextAuthUrl: !!process.env.NEXTAUTH_URL,
+      nodeEnv: process.env.NODE_ENV
+    })
+    
     await connectToDatabase()
     console.log('Database connected for ride creation')
     
@@ -101,6 +108,51 @@ export async function POST(request: NextRequest) {
       hasDestination: !!body.destination,
       pickupAddress: body.pickup?.address,
       destinationAddress: body.destination?.address
+    })
+    
+    // Test minimal ride creation first
+    console.log('Testing minimal ride creation...')
+    const testRide = new Ride({
+      rideId: 'TEST_' + Date.now(),
+      pickupCode: '123456',
+      otp: '1234',
+      userId: body.userId,
+      pickup: body.pickup,
+      destination: body.destination,
+      route: {
+        distance: 10.5,
+        estimatedDuration: 25,
+        estimatedFare: 15.75
+      },
+      status: 'requested',
+      carbonFootprint: {
+        estimatedSaved: 2.1,
+        comparisonMethod: 'vs private car',
+        calculationMethod: 'EPA standard'
+      },
+      pricing: {
+        baseFare: 3.5,
+        distanceFee: 10.0,
+        timeFee: 2.25,
+        totalEstimated: 15.75,
+        currency: 'USD',
+        isSponsored: false
+      },
+      platform: 'web'
+    })
+    
+    console.log('Attempting to save test ride...')
+    await testRide.save()
+    console.log('Test ride saved successfully')
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Test ride created successfully',
+      data: {
+        id: testRide._id,
+        rideId: testRide.rideId,
+        status: testRide.status
+      }
     })
     
     const {
