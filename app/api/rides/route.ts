@@ -141,7 +141,22 @@ export async function POST(request: NextRequest) {
       platform: 'web'
     })
     
-    console.log('Attempting to save test ride...')
+    console.log('Attempting to validate ride before saving...')
+    const validationError = testRide.validateSync()
+    if (validationError) {
+      console.log('Validation failed:', validationError.message)
+      console.log('Validation errors:', validationError.errors)
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: validationError.message,
+          details: validationError.errors
+        }
+      }, { status: 400 })
+    }
+    console.log('Validation passed, attempting to save...')
+    
     await testRide.save()
     console.log('Test ride saved successfully')
     
