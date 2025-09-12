@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       await user.save()
       console.log('Updated existing user:', user.googleId)
     } else {
-      // Create new user
+      // Create new user (without driverProfile to avoid geospatial index issues)
       user = new User({
         googleId,
         email,

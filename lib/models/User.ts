@@ -179,12 +179,10 @@ const userSchema = new mongoose.Schema<IUser>({
     currentLocation: {
       type: {
         type: String,
-        enum: ['Point'],
-        default: 'Point'
+        enum: ['Point']
       },
       coordinates: {
-        type: [Number], // [longitude, latitude]
-        default: undefined
+        type: [Number] // [longitude, latitude]
       }
     },
     lastLocationUpdate: Date,
