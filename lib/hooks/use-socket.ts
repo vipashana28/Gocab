@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { io, Socket } from 'socket.io-client'
+import { useEffect, useState, useCallback } from 'react'
 
 interface DriverLocationData {
   coordinates: {
@@ -22,120 +21,65 @@ interface RideStatusData {
 }
 
 export function useSocket() {
-  const socketRef = useRef<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Initialize socket connection
-    const initSocket = async () => {
+    // Initialize connection check
+    const checkConnection = async () => {
       try {
-        // Initialize the socket server
-        await fetch('/api/socket')
-        
-        // Create socket connection
-        socketRef.current = io({
-          path: '/api/socket',
-          addTrailingSlash: false,
-        })
-
-        socketRef.current.on('connect', () => {
-          console.log('🔗 Socket connected:', socketRef.current?.id)
+        const response = await fetch('/api/socket')
+        if (response.ok) {
+          console.log('⚡ Real-time service available')
           setIsConnected(true)
           setConnectionError(null)
-        })
-
-        socketRef.current.on('disconnect', () => {
-          console.log('🔌 Socket disconnected')
-          setIsConnected(false)
-        })
-
-        socketRef.current.on('connect_error', (error) => {
-          console.error('❌ Socket connection error:', error)
-          setConnectionError('Failed to connect to real-time service')
-        })
-
+        }
       } catch (error) {
-        console.error('❌ Socket initialization error:', error)
-        setConnectionError('Failed to initialize real-time service')
+        console.error('❌ Real-time service error:', error)
+        setConnectionError('Real-time service unavailable')
+        setIsConnected(false)
       }
     }
 
-    initSocket()
+    checkConnection()
+  }, [])
 
-    // Cleanup on unmount
+  const joinRide = useCallback((rideId: string) => {
+    console.log('📍 Joining ride room (polling mode):', rideId)
+  }, [])
+
+  const leaveRide = useCallback((rideId: string) => {
+    console.log('🚪 Leaving ride room (polling mode):', rideId)
+  }, [])
+
+  const onDriverLocationUpdate = useCallback((callback: (data: DriverLocationData) => void) => {
+    // For polling mode, we'll handle this in the component
+    console.log('🗒️ Driver location update listener registered (polling mode)')
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect()
-        socketRef.current = null
-      }
+      console.log('🧹 Driver location update listener cleaned up')
     }
   }, [])
 
-  const joinRide = (rideId: string) => {
-    if (socketRef.current && isConnected) {
-      console.log('📍 Joining ride room:', rideId)
-      socketRef.current.emit('join-ride', rideId)
+  const onRideStatusUpdate = useCallback((callback: (data: RideStatusData) => void) => {
+    // For polling mode, we'll handle this in the component  
+    console.log('🗒️ Ride status update listener registered (polling mode)')
+    return () => {
+      console.log('🧹 Ride status update listener cleaned up')
     }
-  }
+  }, [])
 
-  const leaveRide = (rideId: string) => {
-    if (socketRef.current && isConnected) {
-      console.log('🚪 Leaving ride room:', rideId)
-      socketRef.current.emit('leave-ride', rideId)
-    }
-  }
+  const updateDriverLocation = useCallback((rideId: string, coordinates: { latitude: number, longitude: number }, heading?: number, speed?: number) => {
+    // This will be handled via API calls instead of socket
+    console.log('📍 Driver location update (API mode):', { rideId, coordinates })
+  }, [])
 
-  const onDriverLocationUpdate = (callback: (data: DriverLocationData) => void) => {
-    if (socketRef.current) {
-      socketRef.current.on('driver-moved', callback)
-      
-      // Return cleanup function
-      return () => {
-        if (socketRef.current) {
-          socketRef.current.off('driver-moved', callback)
-        }
-      }
-    }
-  }
-
-  const onRideStatusUpdate = (callback: (data: RideStatusData) => void) => {
-    if (socketRef.current) {
-      socketRef.current.on('ride-status-changed', callback)
-      
-      return () => {
-        if (socketRef.current) {
-          socketRef.current.off('ride-status-changed', callback)
-        }
-      }
-    }
-  }
-
-  const updateDriverLocation = (rideId: string, coordinates: { latitude: number, longitude: number }, heading?: number, speed?: number) => {
-    if (socketRef.current && isConnected) {
-      socketRef.current.emit('driver-location-update', {
-        rideId,
-        coordinates,
-        heading,
-        speed,
-        timestamp: new Date()
-      })
-    }
-  }
-
-  const updateRideStatus = (rideId: string, status: string, statusDisplay: string, additionalInfo?: any) => {
-    if (socketRef.current && isConnected) {
-      socketRef.current.emit('ride-status-update', {
-        rideId,
-        status,
-        statusDisplay,
-        additionalInfo
-      })
-    }
-  }
+  const updateRideStatus = useCallback((rideId: string, status: string, statusDisplay: string, additionalInfo?: any) => {
+    // This will be handled via API calls instead of socket
+    console.log('📊 Ride status update (API mode):', { rideId, status, statusDisplay })
+  }, [])
 
   return {
-    socket: socketRef.current,
+    socket: null, // No actual socket for now
     isConnected,
     connectionError,
     joinRide,
