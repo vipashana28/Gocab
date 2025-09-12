@@ -5,16 +5,16 @@ import { User } from '@/lib/models'
 export async function POST(request: NextRequest) {
   try {
     console.log('🔄 Sync user request started')
-    console.log('📊 Environment check:', {
+    console.log('Environment check:', {
       mongoUri: !!process.env.MONGODB_URI,
       nodeEnv: process.env.NODE_ENV
     })
     
     await connectToDatabase()
-    console.log('✅ Database connection established')
+    console.log('Database connection established')
     
     const body = await request.json()
-    console.log('📝 Request body received:', {
+    console.log('Request body received:', {
       hasGoogleId: !!body.googleId,
       hasEmail: !!body.email,
       firstName: body.firstName
@@ -98,8 +98,8 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('❌ Sync user error:', error)
-    console.error('❌ Error details:', {
+    console.error('Sync user error:', error)
+    console.error('Error details:', {
       name: error?.name,
       message: error?.message,
       code: error?.code,

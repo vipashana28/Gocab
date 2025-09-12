@@ -89,13 +89,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🚗 Creating new ride request...')
+    console.log('Creating new ride request...')
     
     await connectToDatabase()
-    console.log('✅ Database connected for ride creation')
+    console.log('Database connected for ride creation')
     
     const body = await request.json()
-    console.log('📝 Ride request data:', {
+    console.log('Ride request data:', {
       hasUserId: !!body.userId,
       hasPickup: !!body.pickup,
       hasDestination: !!body.destination,
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
           )
         }
         
-        console.log(`✅ Found user: ${user.email} (${user._id})`)
+        console.log(`Found user: ${user.email} (${user._id})`)
       } catch (dbError: any) {
         console.error('Database error finding user:', dbError)
         return NextResponse.json(
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
     const durationMinutes = routeData.data.durationInTraffic?.minutes || routeData.data.duration?.minutes
     
     // Add debugging and validation
-    console.log('📊 Route calculation data:', { 
+    console.log('Route calculation data:', { 
       distanceKm, 
       durationMinutes, 
       rawData: routeData.data 
@@ -279,7 +279,7 @@ export async function POST(request: NextRequest) {
     
     // Validate distance and duration
     if (!distanceKm || !durationMinutes || isNaN(distanceKm) || isNaN(durationMinutes)) {
-      console.error('❌ Invalid distance or duration:', { distanceKm, durationMinutes })
+      console.error('Invalid distance or duration:', { distanceKm, durationMinutes })
       return NextResponse.json(
         { success: false, error: 'Invalid route calculation data received.' },
         { status: 400 }
@@ -297,14 +297,14 @@ export async function POST(request: NextRequest) {
     
     // Validate fare calculation
     if (isNaN(estimatedFare)) {
-      console.error('❌ Invalid fare calculation:', { baseFare, distanceFee, timeFee, estimatedFare })
+      console.error('Invalid fare calculation:', { baseFare, distanceFee, timeFee, estimatedFare })
       return NextResponse.json(
         { success: false, error: 'Failed to calculate fare.' },
         { status: 400 }
       )
     }
     
-    console.log('💰 Fare calculation:', { baseFare, distanceFee, timeFee, estimatedFare })
+    console.log('Fare calculation:', { baseFare, distanceFee, timeFee, estimatedFare })
 
     // Calculate carbon footprint (using km for more accurate EPA calculations)
     const carbonSaved = distanceKm * 0.21 * 0.6 // 0.21 kg CO2/km for avg car * 60% reduction
@@ -351,8 +351,8 @@ export async function POST(request: NextRequest) {
       platform: 'web'
     })
 
-    console.log('💾 Attempting to save ride to database...')
-    console.log('📋 Ride data being saved:', JSON.stringify({
+    console.log('Attempting to save ride to database...')
+    console.log('Ride data being saved:', JSON.stringify({
       rideId: ride.rideId,
       userId: ride.userId,
       status: ride.status,
@@ -363,7 +363,7 @@ export async function POST(request: NextRequest) {
     }, null, 2))
     
     await ride.save()
-    console.log('✅ Ride saved successfully to database')
+    console.log('Ride saved successfully to database')
 
     // Find available drivers near the pickup location
     let nearbyDrivers = []
@@ -411,7 +411,7 @@ export async function POST(request: NextRequest) {
     // Broadcast ride request to all nearby drivers
     // Note: In production, this would use WebSocket or push notifications
     // For now, drivers will poll the API to get ride requests
-    console.log(`📢 Broadcasting ride ${ride.rideId} to ${nearbyDrivers.length} nearby drivers`)
+    console.log(`Broadcasting ride ${ride.rideId} to ${nearbyDrivers.length} nearby drivers`)
     
     // Update ride status to searching for driver
     ride.status = 'requested'
@@ -440,7 +440,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Create ride error:', error)
-    console.error('❌ Detailed error:', {
+    console.error('Detailed error:', {
       name: error?.name,
       message: error?.message,
       code: error?.code,

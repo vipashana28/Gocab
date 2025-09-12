@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
 
       await ride.save()
 
-      console.log(`🚗 Driver ${driverId} accepted ride ${rideId}`)
+      console.log(`Driver ${driverId} accepted ride ${rideId}`)
 
       return NextResponse.json({
         success: true,
@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
 
     } else if (action === 'decline') {
       // For decline, we just log it - the ride remains available for other drivers
-      console.log(`🚗 Driver ${driverId} declined ride ${rideId}`)
+      console.log(`Driver ${driverId} declined ride ${rideId}`)
 
       return NextResponse.json({
         success: true,
