@@ -266,18 +266,20 @@ export async function POST(request: NextRequest) {
     // Calculate carbon footprint (using km for more accurate EPA calculations)
     const carbonSaved = distanceKm * 0.21 * 0.6 // 0.21 kg CO2/km for avg car * 60% reduction
 
-    // Generate unique ride ID and pickup code
+    // Generate unique ride ID, pickup code, and OTP
     const rideId =
       'RIDE_' +
       Date.now() +
       '_' +
       Math.random().toString(36).substr(2, 6).toUpperCase()
     const pickupCode = Math.floor(100000 + Math.random() * 900000).toString()
+    const otp = Math.floor(1000 + Math.random() * 9000).toString() // 4-digit OTP
 
     // Create new ride
     const ride = new Ride({
       rideId,
       pickupCode,
+      otp,
       userId,
       pickup,
       destination,
@@ -309,69 +311,40 @@ export async function POST(request: NextRequest) {
 
     await ride.save()
 
-    // For demo purposes, we'll simulate a driver assignment with dummy data
-    // In production, this would query real driver database
-    const dummyDrivers = [
-      {
-        name: 'Alex Johnson',
-        phone: '+1 (555) 123-4567',
-        vehicleInfo: '2022 Toyota Camry - Blue',
-        licensePlate: 'GC-001',
-        photo: 'https://i.pravatar.cc/150?u=alex-johnson',
-        rating: 4.9
-      },
-      {
-        name: 'Maria Rodriguez',
-        phone: '+1 (555) 234-5678',
-        vehicleInfo: '2023 Honda Civic - White',
-        licensePlate: 'GC-002',
-        photo: 'https://i.pravatar.cc/150?u=maria-rodriguez',
-        rating: 4.8
-      },
-      {
-        name: 'David Chen',
-        phone: '+1 (555) 345-6789',
-        vehicleInfo: '2021 Nissan Altima - Gray',
-        licensePlate: 'GC-003',
-        photo: 'https://i.pravatar.cc/150?u=david-chen',
-        rating: 4.7
+    // Find available drivers near the pickup location
+    const nearbyDrivers = await User.find({
+      'driverProfile.isOnline': true,
+      'driverProfile.currentLocation': {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [pickup.coordinates.longitude, pickup.coordinates.latitude] // [lng, lat]
+          },
+          $maxDistance: 10000 // 10km radius
+        }
       }
-    ]
+    }).limit(10) // Get up to 10 nearby drivers
+    
+    if (nearbyDrivers.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'NO_DRIVERS_AVAILABLE',
+          message: 'No drivers around! Come back after sometime soon!',
+          userMessage: 'No drivers around! Come back after sometime soon!'
+        }
+      }, { status: 503 }) // Service Unavailable
+    }
 
-    // Randomly assign a dummy driver (for demo)
-    const assignedDriver = dummyDrivers[Math.floor(Math.random() * dummyDrivers.length)]
+    // Broadcast ride request to all nearby drivers
+    // Note: In production, this would use WebSocket or push notifications
+    // For now, drivers will poll the API to get ride requests
+    console.log(`📢 Broadcasting ride ${ride.rideId} to ${nearbyDrivers.length} nearby drivers`)
     
-    // Generate dummy driver location near pickup
-    const driverLocation = {
-      latitude: pickup.coordinates.latitude + (Math.random() - 0.5) * 0.01, // Within ~1km
-      longitude: pickup.coordinates.longitude + (Math.random() - 0.5) * 0.01
-    }
-    
-    // Estimate arrival time (2-8 minutes)
-    const estimatedArrivalMinutes = Math.floor(Math.random() * 6) + 2
-    
-    // Update ride with driver assignment
-    ride.status = 'matched'
-    ride.matchedAt = new Date()
-    ride.driverContact = {
-      phone: assignedDriver.phone,
-      name: assignedDriver.name,
-      vehicleInfo: assignedDriver.vehicleInfo,
-      licensePlate: assignedDriver.licensePlate,
-      photo: assignedDriver.photo,
-      rating: assignedDriver.rating
-    }
-    ride.driverLocation = {
-      coordinates: driverLocation,
-      lastUpdated: new Date()
-    }
-    ride.estimatedArrival = `${estimatedArrivalMinutes} minutes`
-    ride.statusDisplay = 'Driver Found'
-    
+    // Update ride status to searching for driver
+    ride.status = 'requested'
+    ride.statusDisplay = 'Finding Driver...'
     await ride.save()
-
-    // Populate driver info if matched
-    await ride.populate('driverId', 'firstName lastName phone vehicle')
     
     return NextResponse.json({
       success: true,
@@ -379,6 +352,7 @@ export async function POST(request: NextRequest) {
         id: ride._id,
         rideId: ride.rideId,
         pickupCode: ride.pickupCode,
+        otp: ride.otp,
         status: ride.status,
         statusDisplay: ride.statusDisplay,
         pickup: ride.pickup,
@@ -386,13 +360,10 @@ export async function POST(request: NextRequest) {
         route: ride.route,
         carbonFootprint: ride.carbonFootprint,
         pricing: ride.pricing,
-        driverContact: ride.driverContact,
-        driverLocation: ride.driverLocation,
-        estimatedArrival: ride.estimatedArrival,
         requestedAt: ride.requestedAt,
-        matchedAt: ride.matchedAt
+        availableDrivers: nearbyDrivers.length
       },
-      message: 'Ride created and driver assigned'
+      message: 'Ride request sent to nearby drivers'
     })
 
   } catch (error) {

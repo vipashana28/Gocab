@@ -77,11 +77,11 @@ export function useGoCabAuth() {
     syncUserData()
   }, [status, session]) // Remove user from dependencies to prevent loops
 
-  const handleSignIn = async () => {
+  const handleSignIn = async (redirectTo: string = '/dashboard') => {
     setError(null)
     try {
-      console.log('🚀 Starting Google Auth sign in...')
-      await nextAuthSignIn('google', { callbackUrl: '/dashboard' })
+      console.log('🚀 Starting Google Auth sign in...', { redirectTo })
+      await nextAuthSignIn('google', { callbackUrl: redirectTo })
     } catch (err) {
       console.error('Sign in error:', err)
       setError('Failed to sign in with Google')

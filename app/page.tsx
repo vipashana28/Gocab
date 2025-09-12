@@ -95,7 +95,7 @@ export default function HomePage() {
         <button 
           className="w-full bg-white border-2 border-gray-200 text-gray-700 font-medium py-4 px-6 rounded-2xl transition-all duration-300 hover:border-green-300 hover:shadow-lg flex items-center justify-center space-x-3 group"
           disabled={isLoading}
-          onClick={signIn}
+          onClick={() => signIn()}
         >
           <svg className="w-6 h-6" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -108,9 +108,18 @@ export default function HomePage() {
           </span>
         </button>
 
-        {/* Footer */}
+        {/* Driver Sign In */}
         <div className="mt-8 text-center">
-          <p className="text-gray-500 text-sm">
+          <div className="border-t border-gray-200 pt-6 mb-4">
+            <p className="text-gray-600 text-sm mb-3">Are you a driver?</p>
+            <button 
+              onClick={() => signIn('/driver')}
+              className="text-green-600 hover:text-green-700 font-medium text-sm underline transition-colors"
+            >
+              🚗 Sign in as Driver
+            </button>
+          </div>
+          <p className="text-gray-500 text-xs">
             Secure authentication powered by Google
           </p>
         </div>

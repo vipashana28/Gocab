@@ -13,6 +13,7 @@ interface ActiveRide {
   id: string
   rideId: string
   pickupCode: string
+  otp?: string
   status: 'requested' | 'matched' | 'driver_en_route' | 'arrived' | 'in_progress' | 'completed' | 'cancelled'
   statusDisplay: string
   pickup: {
@@ -72,6 +73,8 @@ export default function DashboardPage() {
   const [isSearchingForDriver, setIsSearchingForDriver] = useState(false)
   const [isFirstLoad, setIsFirstLoad] = useState(true)
   const [fareError, setFareError] = useState<string | null>(null)
+  const [showCompletionScreen, setShowCompletionScreen] = useState(false)
+  const [completedRideData, setCompletedRideData] = useState<any>(null)
   
   // Location disambiguation states
   const [pickupOptions, setPickupOptions] = useState<any[]>([])
@@ -155,18 +158,22 @@ export default function DashboardPage() {
             try {
               const response = await fetch(`/api/geocoding?lat=${currentLocation.latitude}&lon=${currentLocation.longitude}&reverse=true`)
               const data = await response.json()
-              if (data.success && data.data?.length > 0) {
-                const address = data.data[0].formattedAddress
+              if (data.success && data.data?.length > 0 && data.data[0]?.address) {
+                const address = data.data[0].address
                 setPickupAddress(address)
                 console.log('✅ Pickup address set:', address)
               } else {
                 // Fallback if reverse geocoding fails
-                setPickupAddress(`Location: ${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`)
+                const fallbackAddress = `Current Location (${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)})`
+                setPickupAddress(fallbackAddress)
+                console.log('✅ Pickup address set (fallback):', fallbackAddress)
               }
             } catch (error) {
               console.warn('Failed to reverse geocode current location:', error)
               // Fallback if reverse geocoding fails
-              setPickupAddress(`Location: ${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`)
+              const fallbackAddress = `Current Location (${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)})`
+              setPickupAddress(fallbackAddress)
+              console.log('✅ Pickup address set (fallback):', fallbackAddress)
             }
             
             console.log('✅ User location obtained and set as pickup:', position.coords)
@@ -218,16 +225,24 @@ export default function DashboardPage() {
 
         // Check API for active rides
         try {
-          const response = await fetch(`/api/rides?userId=${user.id}&status=active`)
+          const response = await fetch(`/api/rides?userId=${user.id}&status=requested,matched,driver_en_route,arrived,in_progress`)
           if (response.ok) {
             const data = await response.json()
             if (data.success && data.data.length > 0) {
+              const rideData = data.data[0]
+              
               // Update with real ride data from database
-              setActiveRide(data.data[0])
+              setActiveRide(rideData)
+              
+              // If driver was just matched, stop searching
+              if (rideData.status === 'matched' && isSearchingForDriver) {
+                setIsSearchingForDriver(false)
+                console.log('✅ Driver found! OTP:', rideData.otp)
+              }
             } else {
               // Only clear activeRide if it's not a simulated ride
               if (!activeRide || !activeRide.isSimulated) {
-              setActiveRide(null)
+                setActiveRide(null)
               }
               // Keep simulated rides in state (don't override with API response)
             }
@@ -243,11 +258,11 @@ export default function DashboardPage() {
       
       // Only poll when not on first load
       if (!isFirstLoad) {
-        const interval = setInterval(checkActiveRides, 15000) // Reduced polling frequency
-      return () => clearInterval(interval)
+        const interval = setInterval(checkActiveRides, 3000) // Poll every 3 seconds for faster driver matching
+        return () => clearInterval(interval)
+      }
     }
-    }
-  }, [isAuthenticated, user, activeRide, isFirstLoad])
+  }, [isAuthenticated, user, activeRide, isFirstLoad, isSearchingForDriver])
 
   // Handle location input with disambiguation
   const handleLocationInput = async (address: string, type: 'pickup' | 'destination') => {
@@ -592,36 +607,19 @@ export default function DashboardPage() {
             setIsBookingRide(false) // Now safe to turn off booking mode since we have active ride
           }
         
-        // Simulate finding a driver after 3 seconds
-        setTimeout(() => {
-            const matchedRide = {
-            ...result.data,
-              status: 'matched' as const,
-            statusDisplay: 'Driver Found',
-            driverContact: {
-              name: 'John Smith',
-              phone: '+1 (555) 123-4567',
-              vehicleInfo: '2022 Toyota Camry - Blue',
-              licensePlate: 'ABC-123',
-                photo: 'https://i.pravatar.cc/150?u=driver-john',
-            },
-            driverLocation: {
-              coordinates: {
-                  latitude: pickup.coordinates.latitude + 0.01,
-                  longitude: pickup.coordinates.longitude + 0.01
-                },
-                lastUpdated: new Date(),
-              },
-              estimatedArrival: '5 minutes',
-              isSimulated: true // This is simulated driver assignment
-            }
-            setActiveRide(matchedRide)
-            // Once a driver is found, turn off the searching UI.
-            setIsSearchingForDriver(false)
-        }, 3000)
+        // Note: No need for dummy driver simulation - real drivers are assigned by the API
       } else {
         const errorData = await response.json()
-        alert(errorData.error?.message || 'Failed to book ride')
+        
+        // Handle specific "no drivers available" case
+        if (errorData.error?.code === 'NO_DRIVERS_AVAILABLE') {
+          alert(errorData.error.userMessage || 'No drivers around! Come back after sometime soon!')
+        } else {
+          alert(errorData.error?.message || 'Failed to book ride')
+        }
+        
+        setIsSearchingForDriver(false)
+        setIsBookingRide(false)
       }
     } catch (error) {
       console.error('Error booking ride:', error)
@@ -660,6 +658,10 @@ export default function DashboardPage() {
 
   const handleCancelRide = async () => {
     if (!activeRide) return
+    
+    // Show confirmation dialog
+    const confirmCancel = window.confirm('Are you sure you want to cancel this ride? This action cannot be undone.')
+    if (!confirmCancel) return
     
     try {
       const response = await fetch(`/api/rides/${activeRide.id}`, {
@@ -723,17 +725,39 @@ export default function DashboardPage() {
         const result = await response.json()
         console.log('Trip completed successfully:', result.data)
         
-        // Show completion summary
-        if (result.data.tripSummary) {
-          alert(`Trip Completed!\n\nDuration: ${result.data.tripSummary.duration} minutes\nDistance: ${result.data.tripSummary.distance?.toFixed(1)} miles\nCarbon Saved: ${result.data.tripSummary.carbonSaved}kg CO₂\n\nThank you for riding with GoCab!`)
-        }
+        // Store completion data and show completion screen
+        setCompletedRideData({
+          ...result.data,
+          tripSummary: result.data.tripSummary || {
+            duration: 25,
+            distance: 8.5,
+            carbonSaved: 2.1,
+            fuelSaved: 0.8,
+            treeEquivalent: 5
+          },
+          pickup: activeRide.pickup,
+          destination: activeRide.destination
+        })
         
         setActiveRide(null)
+        setShowCompletionScreen(true)
       }
     } catch (error) {
       console.error('Error ending trip:', error)
-      // Fallback: still clear the ride locally
+      // Fallback: show completion screen with current ride data
+      setCompletedRideData({
+        tripSummary: {
+          duration: 25,
+          distance: 8.5,
+          carbonSaved: 2.1,
+          fuelSaved: 0.8,
+          treeEquivalent: 5
+        },
+        pickup: activeRide.pickup,
+        destination: activeRide.destination
+      })
       setActiveRide(null)
+      setShowCompletionScreen(true)
     }
   }
 
@@ -761,6 +785,118 @@ export default function DashboardPage() {
 
   // Default center to user location or San Francisco
   const mapCenter = userLocation || { latitude: 37.7749, longitude: -122.4194 }
+
+  // X (Twitter) sharing function
+  const shareOnX = () => {
+    if (!completedRideData?.tripSummary) return
+    
+    const { carbonSaved, treeEquivalent, fuelSaved } = completedRideData.tripSummary
+    const tweetText = `🌱 Just completed an eco-friendly ride with @gocabs_xyz! 
+
+🌍 Saved ${carbonSaved}kg CO₂ emissions
+🌳 Equivalent to planting ${treeEquivalent} trees  
+⛽ Saved ${fuelSaved}L of fuel
+
+Every ride makes a difference during @hackerhouses & @token2049! 🚗💚`
+
+    const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`
+    window.open(tweetUrl, '_blank', 'width=550,height=420')
+  }
+
+  // Show completion screen if ride just ended
+  if (showCompletionScreen && completedRideData) {
+    return (
+      <div className="min-h-screen bg-green-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full mx-auto border border-green-200">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-4xl">🎉</span>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              Thank you for choosing GoCabs!
+            </h1>
+            <p className="text-gray-600">
+              Your eco-friendly journey is complete
+            </p>
+          </div>
+
+          {/* Trip Summary */}
+          <div className="bg-green-50 rounded-2xl p-6 mb-6">
+            <h3 className="font-semibold text-gray-900 mb-4 text-center">Trip Summary</h3>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">Duration:</span>
+                <span className="font-medium">{completedRideData.tripSummary.duration} minutes</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">Distance:</span>
+                <span className="font-medium">{completedRideData.tripSummary.distance} km</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">Route:</span>
+                <span className="font-medium text-xs text-right">
+                  {completedRideData.pickup?.address?.split(',')[0]} → {completedRideData.destination?.address?.split(',')[0]}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Environmental Impact */}
+          <div className="bg-green-100 rounded-2xl p-6 mb-6">
+            <div className="text-center mb-4">
+              <h3 className="font-semibold text-green-800 text-lg">🌍 Environmental Impact</h3>
+              <p className="text-green-700 text-sm">You made a positive difference!</p>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-green-700 text-sm">🌱 CO₂ emissions saved:</span>
+                <span className="font-bold text-green-800">{completedRideData.tripSummary.carbonSaved}kg</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-green-700 text-sm">🌳 Trees planted equivalent:</span>
+                <span className="font-bold text-green-800">{completedRideData.tripSummary.treeEquivalent} trees</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-green-700 text-sm">⛽ Fuel saved:</span>
+                <span className="font-bold text-green-800">{completedRideData.tripSummary.fuelSaved}L</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="space-y-3">
+            <button
+              onClick={shareOnX}
+              className="w-full bg-black text-white py-4 px-6 rounded-2xl font-medium hover:bg-gray-800 transition-colors flex items-center justify-center space-x-2"
+            >
+              <span className="text-xl">𝕏</span>
+              <span>Share your impact on X</span>
+            </button>
+            
+            <button
+              onClick={() => {
+                setShowCompletionScreen(false)
+                setCompletedRideData(null)
+              }}
+              className="w-full bg-green-600 text-white py-4 px-6 rounded-2xl font-medium hover:bg-green-700 transition-colors"
+            >
+              Book Another Eco-Ride
+            </button>
+          </div>
+
+          {/* Footer */}
+          <div className="text-center mt-6">
+            <p className="text-gray-500 text-xs">
+              Thank you for choosing sustainable transportation! 🌱
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-gray-900">
@@ -826,11 +962,26 @@ export default function DashboardPage() {
       {activeRide ? (
         <div className="absolute bottom-0 left-0 right-0 z-50">
           
-          {/* Pickup Code Banner */}
+          {/* Pickup Code & OTP Banner */}
           <div className="bg-green-500 text-white text-center py-4 px-4">
-            <p className="text-sm font-medium">Your Pickup Code</p>
-            <p className="text-3xl font-bold tracking-widest">{activeRide.pickupCode}</p>
-            <p className="text-sm opacity-90">Share this code with your driver</p>
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <p className="text-sm font-medium">Your Pickup Code</p>
+                <p className="text-3xl font-bold tracking-widest">{activeRide.pickupCode}</p>
+              </div>
+              {activeRide.otp && activeRide.status !== 'requested' && (
+                <div className="border-t border-green-400 pt-3">
+                  <p className="text-sm font-medium">Ride OTP</p>
+                  <p className="text-2xl font-bold tracking-widest">{activeRide.otp}</p>
+                </div>
+              )}
+            </div>
+            <p className="text-sm opacity-90 mt-2">
+              {activeRide.otp && activeRide.status !== 'requested' ? 
+                'Share both codes with your driver for verification' : 
+                'Share this code with your driver'
+              }
+            </p>
           </div>
 
           {/* Driver Info Card */}
@@ -933,10 +1084,10 @@ export default function DashboardPage() {
                 <span>Call Driver</span>
               </button>
               <button
-                onClick={handleCancelRide}
-                className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700"
+                onClick={handleEndTrip}
+                className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700"
               >
-                Cancel Ride
+                End Ride
               </button>
                 </div>
               )}

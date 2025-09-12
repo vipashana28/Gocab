@@ -45,6 +45,19 @@ export interface IUser extends mongoose.Document {
   // Account Status
   isActive: boolean
   isVerified: boolean
+  
+  // Driver Profile (for drivers)
+  driverProfile?: {
+    isOnline: boolean
+    currentLocation?: {
+      type: 'Point'
+      coordinates: [number, number] // [longitude, latitude]
+    }
+    lastLocationUpdate?: Date
+    vehicleInfo?: string
+    licensePlate?: string
+    rating?: number
+  }
 }
 
 const userSchema = new mongoose.Schema<IUser>({
@@ -155,6 +168,42 @@ const userSchema = new mongoose.Schema<IUser>({
   isVerified: {
     type: Boolean,
     default: false
+  },
+  
+  // Driver Profile (for drivers)
+  driverProfile: {
+    isOnline: {
+      type: Boolean,
+      default: false
+    },
+    currentLocation: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point'
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        default: undefined
+      }
+    },
+    lastLocationUpdate: Date,
+    vehicleInfo: {
+      type: String,
+      default: '2023 Toyota Camry - Blue'
+    },
+    licensePlate: {
+      type: String,
+      default: function() {
+        return 'GC-' + Math.floor(Math.random() * 999).toString().padStart(3, '0')
+      }
+    },
+    rating: {
+      type: Number,
+      default: 4.8,
+      min: 1,
+      max: 5
+    }
   }
 }, {
   timestamps: true,
@@ -166,6 +215,7 @@ const userSchema = new mongoose.Schema<IUser>({
 userSchema.index({ email: 1, isActive: 1 })
 userSchema.index({ isSponsored: 1, isActive: 1 })
 userSchema.index({ lastActive: -1 })
+userSchema.index({ 'driverProfile.currentLocation': '2dsphere' }) // Geospatial index for driver location
 
 // Virtual for full name
 userSchema.virtual('fullName').get(function() {

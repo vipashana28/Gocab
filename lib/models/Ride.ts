@@ -8,6 +8,7 @@ export interface IRide extends mongoose.Document {
   // Ride Identification
   rideId: string
   pickupCode: string // 6-digit code for verification
+  otp: string // 4-digit OTP shared between rider and driver
   
   // Locations
   pickup: {
@@ -139,6 +140,12 @@ const rideSchema = new mongoose.Schema<IRide>({
     required: true,
     length: 6,
     match: /^[0-9]{6}$/ // 6-digit numeric code
+  },
+  otp: {
+    type: String,
+    required: true,
+    length: 4,
+    match: /^[0-9]{4}$/ // 4-digit OTP
   },
   
   // Locations

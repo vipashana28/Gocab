@@ -38,196 +38,180 @@ interface Event {
   isHappeningNow: boolean
 }
 
+// Helper functions for Luma links and partner handles
+const getEventLumaLink = (eventId: string): string => {
+  const lumaLinks: { [key: string]: string } = {
+    'startup-village-sep29': 'https://luma.com/startup_village_sg',
+    'token2049-sep29': 'https://luma.com/kgkuizrv',
+    'sep30-networking': 'https://luma.com/s26lk0zj',
+    'oct02-depin': 'https://luma.com/bi1r8d5l'
+  }
+  return lumaLinks[eventId] || 'https://luma.com'
+}
+
+const getEventPartnerHandle = (eventId: string): string => {
+  const partnerHandles: { [key: string]: string } = {
+    'startup-village-sep29': 'SuperteamSG',
+    'token2049-sep29': 'SuperteamSG',
+    'sep30-networking': 'SuperteamSG',
+    'oct02-depin': 'SEADePIN'
+  }
+  return partnerHandles[eventId] || 'SuperteamSG'
+}
+
 export default function EventsPage() {
   const { isAuthenticated, user } = useGoCabAuth()
   const router = useRouter()
   
   const [events, setEvents] = useState<Event[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('')
-  const [showUpcomingOnly, setShowUpcomingOnly] = useState(true)
 
-  const categories = [
-    'music', 'sports', 'conference', 'festival', 'community', 'food', 'arts', 'technology', 'other'
-  ]
-
-  // Mock events data for demo
-  const mockEvents: Event[] = [
+  // Partner events for September-October 2024
+  const partnerEvents: Event[] = [
     {
       _id: '1',
-      eventId: 'tech-conf-2024',
-      title: 'Tech Innovation Conference 2024',
-      description: 'Join industry leaders for the biggest tech conference of the year. Featuring talks on AI, blockchain, and the future of technology.',
-      shortDescription: 'Premier tech conference featuring AI and blockchain leaders.',
-      category: 'technology',
-      startDate: '2024-09-15T09:00:00Z',
-      endDate: '2024-09-15T17:00:00Z',
+      eventId: 'startup-village-sep29',
+      title: 'Startup Village Singapore',
+      description: 'Join the vibrant startup ecosystem in Singapore. Connect with entrepreneurs, investors, and industry leaders.',
+      shortDescription: 'Singapore startup ecosystem networking event.',
+      category: 'conference',
+      startDate: '2024-09-29T09:00:00Z',
+      endDate: '2024-09-29T18:00:00Z',
       venue: {
-        name: 'San Francisco Convention Center',
-        address: '747 Howard St, San Francisco, CA 94103',
-        coordinates: { latitude: 37.7842, longitude: -122.4016 }
+        name: 'Singapore Startup Hub',
+        address: 'Singapore',
+        coordinates: { latitude: 1.3521, longitude: 103.8198 }
       },
       images: {
-        thumbnail: 'https://via.placeholder.com/300x200?text=Tech+Conference',
-        banner: 'https://via.placeholder.com/800x400?text=Tech+Innovation+2024'
+        thumbnail: 'https://via.placeholder.com/300x200?text=Startup+Village+SG',
+        banner: 'https://via.placeholder.com/800x400?text=Startup+Village+Singapore'
       },
       organizer: {
-        name: 'TechForward Inc'
+        name: 'Startup Village Singapore'
       },
       ticketing: {
         isTicketed: true,
-        ticketTypes: [
-          { name: 'General Admission', price: 299, benefits: ['Conference Access', 'Lunch', 'Networking'] },
-          { name: 'VIP', price: 599, benefits: ['All General Benefits', 'VIP Lounge', 'Meet & Greet'] }
-        ]
+        ticketTypes: []
       },
-      tags: ['AI', 'Technology', 'Innovation', 'Networking'],
+      tags: ['Startup', 'Singapore', 'Networking', 'Entrepreneurs'],
       ageRestriction: '18+',
       isOutdoor: false,
-      priceRange: '$199-$599',
+      priceRange: 'Register on Luma',
       isUpcoming: true,
       isPast: false,
       isHappeningNow: false
     },
     {
       _id: '2',
-      eventId: 'food-festival-2024',
-      title: 'San Francisco Food & Wine Festival',
-      description: 'Celebrate the best of Bay Area cuisine with local chefs, wineries, and food trucks. Live music and family-friendly activities.',
-      shortDescription: 'Celebrate Bay Area cuisine with local chefs and wineries.',
-      category: 'food',
-      startDate: '2024-09-22T11:00:00Z',
-      endDate: '2024-09-22T17:00:00Z',
+      eventId: 'token2049-sep29',
+      title: 'Token2049 Side Event',
+      description: 'Premium crypto and blockchain networking event during Token2049 week in Singapore.',
+      shortDescription: 'Premium crypto networking during Token2049 week.',
+      category: 'conference',
+      startDate: '2024-09-29T19:00:00Z',
+      endDate: '2024-09-29T23:00:00Z',
       venue: {
-        name: 'Golden Gate Park',
-        address: 'Golden Gate Park, San Francisco, CA',
-        coordinates: { latitude: 37.7694, longitude: -122.4862 }
+        name: 'Singapore Conference Center',
+        address: 'Singapore',
+        coordinates: { latitude: 1.3521, longitude: 103.8198 }
       },
       images: {
-        thumbnail: 'https://via.placeholder.com/300x200?text=Food+Festival',
-        banner: 'https://via.placeholder.com/800x400?text=SF+Food+Festival'
+        thumbnail: 'https://via.placeholder.com/300x200?text=Token2049+Event',
+        banner: 'https://via.placeholder.com/800x400?text=Token2049+Singapore'
       },
       organizer: {
-        name: 'SF Food Events'
+        name: 'Token2049 Partners'
       },
       ticketing: {
         isTicketed: true,
-        ticketTypes: [
-          { name: 'Adult', price: 45, benefits: ['Food Tastings', 'Entertainment', 'Activities'] },
-          { name: 'Child (5-12)', price: 15, benefits: ['Kids Activities', 'Food Tastings'] }
-        ]
+        ticketTypes: []
       },
-      tags: ['Food', 'Wine', 'Local', 'Family-Friendly'],
-      ageRestriction: 'All Ages',
-      isOutdoor: true,
-      priceRange: '$15-$45',
+      tags: ['Crypto', 'Blockchain', 'Token2049', 'Singapore'],
+      ageRestriction: '21+',
+      isOutdoor: false,
+      priceRange: 'Register on Luma',
       isUpcoming: true,
       isPast: false,
       isHappeningNow: false
     },
     {
       _id: '3',
-      eventId: 'jazz-night-2024',
-      title: 'Jazz Under the Stars',
-      description: 'An intimate evening of smooth jazz featuring local and international artists. Bring a blanket and enjoy music under the stars.',
-      shortDescription: 'Intimate evening of smooth jazz under the stars.',
-      category: 'music',
-      startDate: '2024-09-28T19:00:00Z',
-      endDate: '2024-09-28T22:00:00Z',
+      eventId: 'sep30-networking',
+      title: 'Singapore Tech Networking',
+      description: 'Connect with the Singapore tech community in an intimate networking setting.',
+      shortDescription: 'Singapore tech community networking event.',
+      category: 'conference',
+      startDate: '2024-09-30T18:00:00Z',
+      endDate: '2024-09-30T22:00:00Z',
       venue: {
-        name: 'Yerba Buena Gardens',
-        address: '750 Howard St, San Francisco, CA 94103',
-        coordinates: { latitude: 37.7854, longitude: -122.4005 }
+        name: 'Tech Hub Singapore',
+        address: 'Singapore',
+        coordinates: { latitude: 1.3521, longitude: 103.8198 }
       },
       images: {
-        thumbnail: 'https://via.placeholder.com/300x200?text=Jazz+Night',
-        banner: 'https://via.placeholder.com/800x400?text=Jazz+Under+Stars'
+        thumbnail: 'https://via.placeholder.com/300x200?text=Tech+Networking',
+        banner: 'https://via.placeholder.com/800x400?text=Singapore+Tech'
       },
       organizer: {
-        name: 'SF Jazz Collective'
+        name: 'Singapore Tech Community'
       },
       ticketing: {
-        isTicketed: false,
+        isTicketed: true,
         ticketTypes: []
       },
-      tags: ['Jazz', 'Music', 'Outdoor', 'Free'],
-      ageRestriction: 'All Ages',
-      isOutdoor: true,
-      priceRange: 'Free',
+      tags: ['Tech', 'Networking', 'Singapore'],
+      ageRestriction: '18+',
+      isOutdoor: false,
+      priceRange: 'Register on Luma',
       isUpcoming: true,
       isPast: false,
       isHappeningNow: false
     },
     {
       _id: '4',
-      eventId: 'startup-pitch-2024',
-      title: 'Startup Pitch Competition',
-      description: 'Watch innovative startups pitch their ideas to top VCs and investors. Network with entrepreneurs and industry experts.',
-      shortDescription: 'Startup pitches to VCs and investors with networking.',
+      eventId: 'oct02-depin',
+      title: 'DePIN Summit Singapore',
+      description: 'Explore the future of Decentralized Physical Infrastructure Networks with industry leaders and innovators.',
+      shortDescription: 'DePIN infrastructure and innovation summit.',
       category: 'conference',
-      startDate: '2024-10-05T14:00:00Z',
-      endDate: '2024-10-05T18:00:00Z',
+      startDate: '2024-10-02T09:00:00Z',
+      endDate: '2024-10-02T17:00:00Z',
       venue: {
-        name: 'SOMA Innovation Hub',
-        address: '123 Market St, San Francisco, CA 94105',
-        coordinates: { latitude: 37.7749, longitude: -122.4194 }
+        name: 'Marina Bay Convention Centre',
+        address: 'Singapore',
+        coordinates: { latitude: 1.3521, longitude: 103.8198 }
       },
       images: {
-        thumbnail: 'https://via.placeholder.com/300x200?text=Startup+Pitch',
-        banner: 'https://via.placeholder.com/800x400?text=Pitch+Competition'
+        thumbnail: 'https://via.placeholder.com/300x200?text=DePIN+Summit',
+        banner: 'https://via.placeholder.com/800x400?text=DePIN+Singapore'
       },
       organizer: {
-        name: 'Bay Area Entrepreneurs'
+        name: 'SEA DePIN'
       },
       ticketing: {
         isTicketed: true,
-        ticketTypes: [
-          { name: 'General', price: 75, benefits: ['Event Access', 'Networking', 'Refreshments'] },
-          { name: 'Investor', price: 150, benefits: ['All General Benefits', 'VIP Networking', 'Pitch Deck Access'] }
-        ]
+        ticketTypes: []
       },
-      tags: ['Startup', 'Pitch', 'Investors', 'Networking'],
-      ageRestriction: '21+',
+      tags: ['DePIN', 'Infrastructure', 'Blockchain', 'Singapore'],
+      ageRestriction: '18+',
       isOutdoor: false,
-      priceRange: '$75-$150',
+      priceRange: 'Register on Luma',
       isUpcoming: true,
       isPast: false,
       isHappeningNow: false
     }
   ]
 
-  // Use mock events instead of API call for demo
+  // Load partner events
   useEffect(() => {
     setIsLoading(true)
     
     // Simulate API delay
     setTimeout(() => {
-      let filteredEvents = mockEvents
-      
-      // Apply filters
-      if (selectedCategory) {
-        filteredEvents = filteredEvents.filter(event => event.category === selectedCategory)
-      }
-      
-      if (showUpcomingOnly) {
-        const now = new Date()
-        filteredEvents = filteredEvents.filter(event => new Date(event.startDate) > now)
-      }
-      
-      if (searchTerm) {
-        const term = searchTerm.toLowerCase()
-        filteredEvents = filteredEvents.filter(event => 
-          event.title.toLowerCase().includes(term) ||
-          event.description.toLowerCase().includes(term) ||
-          event.venue.name.toLowerCase().includes(term)
-        )
-      }
-      
-      setEvents(filteredEvents)
+      setEvents(partnerEvents)
       setIsLoading(false)
     }, 500)
-  }, [selectedCategory, showUpcomingOnly, searchTerm])
+  }, [])
 
   const handleBookRideToEvent = (event: Event) => {
     if (!isAuthenticated) {
@@ -241,13 +225,13 @@ export default function EventsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex justify-between items-center mb-6">
+      <header className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-6 py-6">
+          <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
-              <div className="w-10 h-10">
+              <div className="w-10 h-10 bg-green-600 rounded-lg p-2">
                 <img 
                   src="/icons/GOLOGO.svg" 
                   alt="GoCab Logo" 
@@ -255,208 +239,246 @@ export default function EventsPage() {
                 />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Event Discovery</h1>
-                <p className="text-gray-600 mt-1">Find events and book rides to get there</p>
+                <h1 className="text-2xl font-bold text-gray-900">Singapore Tech Events</h1>
+                <p className="text-gray-600">Token2049 week & partner events</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
               {isAuthenticated && (
                 <button 
                   onClick={() => router.push('/dashboard')}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
                   Dashboard
                 </button>
               )}
             </div>
           </div>
-
-          {/* Search and Filters */}
-          <div className="grid md:grid-cols-4 gap-4">
-            <div className="md:col-span-2">
-              <input
-                type="text"
-                placeholder="Search events..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-            
-            <div>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="">All Categories</option>
-                {categories.map(category => (
-                  <option key={category} value={category}>
-                    {category.charAt(0).toUpperCase() + category.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={showUpcomingOnly}
-                  onChange={(e) => setShowUpcomingOnly(e.target.checked)}
-                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                <span className="text-sm text-gray-700">Upcoming only</span>
-              </label>
-            </div>
-          </div>
         </div>
       </header>
 
-      {/* Content */}
-      <div className="container mx-auto px-4 py-8">
+      {/* Partners Section */}
+      <div className="bg-green-50 border-b border-green-100">
+        <div className="container mx-auto px-6 py-12">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">Our Partners</h2>
+            <p className="text-gray-600 text-lg">Connecting Singapore's premier tech events</p>
+          </div>
+
+          {/* Premium Sponsor */}
+          <div className="mb-12">
+            <h3 className="text-xl font-semibold mb-6 text-center text-gray-800">Premium Sponsor</h3>
+            <div className="flex justify-center">
+              <a 
+                href="https://x.com/DeCharge__" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="bg-white border-2 border-green-200 hover:border-green-300 text-gray-900 px-8 py-4 rounded-lg font-semibold text-lg transition-all hover:shadow-lg"
+              >
+                <div className="flex items-center space-x-3">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span>DeCharge</span>
+                </div>
+              </a>
+            </div>
+          </div>
+          
+          {/* Partners Grid */}
+          <div>
+            <h3 className="text-xl font-semibold mb-8 text-center text-gray-800">Event Partners</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+              <a 
+                href="https://x.com/SuperteamSG" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg rounded-lg p-6 text-center transition-all group"
+              >
+                <div className="mb-4">
+                  <svg className="w-8 h-8 mx-auto text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <div className="font-semibold text-gray-900 group-hover:text-green-700">
+                  Superteam Singapore
+                </div>
+                <div className="text-sm text-gray-500 mt-1">@SuperteamSG</div>
+              </a>
+              
+              <a 
+                href="https://x.com/SEADePIN" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg rounded-lg p-6 text-center transition-all group"
+              >
+                <div className="mb-4">
+                  <svg className="w-8 h-8 mx-auto text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                </div>
+                <div className="font-semibold text-gray-900 group-hover:text-green-700">
+                  SEA DePIN
+                </div>
+                <div className="text-sm text-gray-500 mt-1">@SEADePIN</div>
+              </a>
+              
+              <a 
+                href="https://x.com/BackersStage" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg rounded-lg p-6 text-center transition-all group"
+              >
+                <div className="mb-4">
+                  <svg className="w-8 h-8 mx-auto text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <div className="font-semibold text-gray-900 group-hover:text-green-700">
+                  BackerStage
+                </div>
+                <div className="text-sm text-gray-500 mt-1">@BackersStage</div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Events Section */}
+      <div className="container mx-auto px-6 py-12">
+        <div className="text-center mb-10">
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">Featured Events</h2>
+          <p className="text-gray-600 text-lg">Token2049 week events in Singapore</p>
+        </div>
+
         {isLoading ? (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-2 border-green-600 border-t-transparent mx-auto mb-4"></div>
             <p className="text-gray-600">Loading events...</p>
           </div>
-        ) : events.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No events found</h3>
-            <p className="text-gray-600">
-              {searchTerm || selectedCategory ? 
-                'Try adjusting your search filters' : 
-                'No events are currently available'
-              }
-            </p>
-            {(searchTerm || selectedCategory || !showUpcomingOnly) && (
-              <button
-                onClick={() => {
-                  setSearchTerm('')
-                  setSelectedCategory('')
-                  setShowUpcomingOnly(true)
-                }}
-                className="mt-4 text-primary-600 hover:text-primary-700"
-              >
-                Clear all filters
-              </button>
-            )}
-          </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
             {events.map((event) => (
-              <div key={event._id} className="card hover:shadow-lg transition-shadow">
+              <div key={event._id} className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg rounded-lg overflow-hidden transition-all">
                 {/* Event Image */}
-                <div className="h-48 bg-gray-200 rounded-lg mb-4 flex items-center justify-center">
+                <div className="h-48 bg-green-50 flex items-center justify-center">
                   {event.images.thumbnail ? (
                     <img 
                       src={event.images.thumbnail} 
                       alt={event.title}
-                      className="w-full h-full object-cover rounded-lg"
+                      className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="text-4xl">
-                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                        <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
-                        </svg>
-                      </div>
+                    <div className="text-center text-green-600">
+                      <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 4l6 6m0-6l-6 6" />
+                      </svg>
+                      <p className="font-medium">Tech Event</p>
                     </div>
                   )}
                 </div>
 
                 {/* Event Info */}
-                <div className="space-y-3">
-                  <div className="flex justify-between items-start">
-                    <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">
+                <div className="p-6 space-y-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">
                       {event.title}
                     </h3>
-                    <span className="bg-primary-100 text-primary-800 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ml-2">
-                      {event.category}
-                    </span>
+                    <p className="text-gray-600 text-sm">
+                      {event.shortDescription}
+                    </p>
                   </div>
 
-                  <p className="text-gray-600 text-sm line-clamp-3">
-                    {event.shortDescription}
-                  </p>
-
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center text-gray-600">
-
-                      {new Date(event.startDate).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short', 
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
+                  <div className="space-y-2">
+                    <div className="flex items-center text-gray-700">
+                      <svg className="w-4 h-4 mr-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 4l6 6m0-6l-6 6" />
+                      </svg>
+                      <span className="text-sm font-medium">
+                        {new Date(event.startDate).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          month: 'long', 
+                          day: 'numeric'
+                        })}
+                      </span>
                     </div>
 
-                    <div className="flex items-center text-gray-600">
-                      <span className="mr-2">📍</span>
-                      <span className="line-clamp-1">{event.venue.name}</span>
+                    <div className="flex items-center text-gray-700">
+                      <svg className="w-4 h-4 mr-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span className="text-sm">{event.venue.name}</span>
                     </div>
 
-                    <div className="flex items-center text-gray-600">
-                      <span className="mr-2">🏢</span>
-                      <span className="line-clamp-1">{event.organizer.name}</span>
+                    <div className="flex items-center text-gray-700">
+                      <svg className="w-4 h-4 mr-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      <span className="text-sm">{event.organizer.name}</span>
                     </div>
-
-                    {event.priceRange && (
-                      <div className="flex items-center text-gray-600">
-
-                        <span>{event.priceRange}</span>
-                      </div>
-                    )}
                   </div>
 
                   {/* Event Status */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between py-2">
                     <div>
-                      {event.isHappeningNow && (
-                        <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
-                          Live Now
-                        </span>
-                      )}
-                      {event.isUpcoming && !event.isHappeningNow && (
-                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                      {event.isUpcoming && (
+                        <span className="bg-green-100 text-green-800 text-xs font-medium px-3 py-1 rounded-full border border-green-200">
                           Upcoming
-                        </span>
-                      )}
-                      {event.isPast && (
-                        <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-1 rounded-full">
-                          Past
                         </span>
                       )}
                     </div>
                     
                     {event.ageRestriction !== 'all-ages' && (
-                      <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded-full">
+                      <span className="bg-gray-100 text-gray-800 text-xs font-medium px-3 py-1 rounded-full border border-gray-200">
                         {event.ageRestriction}
                       </span>
                     )}
                   </div>
 
                   {/* Actions */}
-                  <div className="pt-4 border-t space-y-2">
+                  <div className="pt-4 border-t border-gray-100 space-y-3">
                     <button
                       onClick={() => handleBookRideToEvent(event)}
                       disabled={event.isPast}
-                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
+                      className={`w-full py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center space-x-2 ${
                         event.isPast 
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'btn-primary'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
                       }`}
                     >
-                      {event.isPast ? 'Event Ended' : '🚗 Book Ride to Event'}
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 12h-6m0 0L9 8m4 4l-4 4" />
+                      </svg>
+                      <span>{event.isPast ? 'Event Ended' : 'Book Ride'}</span>
                     </button>
 
-                    <div className="flex space-x-2">
-                      <button className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 px-4 rounded-lg text-sm font-medium transition-colors">
-                        📋 Details
-                      </button>
-                      <button className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 px-4 rounded-lg text-sm font-medium transition-colors">
-                        💙 Save
+                    <div className="grid grid-cols-2 gap-3">
+                      <a
+                        href={getEventLumaLink(event.eventId)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center space-x-2 bg-white border border-green-600 text-green-600 hover:bg-green-50 py-2 px-4 rounded-lg text-sm font-medium transition-all"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 4l6 6m0-6l-6 6" />
+                        </svg>
+                        <span>Register</span>
+                      </a>
+                      <button 
+                        onClick={() => {
+                          const partnerHandle = getEventPartnerHandle(event.eventId)
+                          if (partnerHandle) {
+                            window.open(`https://x.com/${partnerHandle}`, '_blank')
+                          }
+                        }}
+                        className="flex items-center justify-center space-x-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 py-2 px-4 rounded-lg text-sm font-medium transition-all"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
+                        </svg>
+                        <span>Follow</span>
                       </button>
                     </div>
                   </div>
@@ -466,44 +488,6 @@ export default function EventsPage() {
           </div>
         )}
 
-        {/* Create Sample Events Button (for development) */}
-        <div className="mt-12 text-center">
-          <button
-            onClick={async () => {
-              const sampleEvent = {
-                title: 'Sample Music Festival',
-                description: 'A great music festival with local bands and food trucks. Perfect for a weekend getaway with friends and family.',
-                shortDescription: 'Local music festival with food trucks',
-                category: 'music',
-                startDate: new Date(Date.now() + 86400000 * 7).toISOString(), // 7 days from now
-                endDate: new Date(Date.now() + 86400000 * 7 + 3600000 * 6).toISOString(), // 6 hours later
-                venue: {
-                  name: 'Central Park',
-                  address: '123 Main St, Your City',
-                  coordinates: { latitude: 40.7589, longitude: -73.9851 }
-                },
-                organizer: {
-                  name: 'Music Events Co',
-                  email: 'events@musicevents.com'
-                },
-                createdBy: 'admin'
-              }
-              
-              const response = await fetch('/api/events', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(sampleEvent)
-              })
-              
-              if (response.ok) {
-                window.location.reload()
-              }
-            }}
-            className="bg-green-100 text-green-800 hover:bg-green-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            Create Sample Event (Dev)
-          </button>
-        </div>
       </div>
     </div>
   )
