@@ -1103,11 +1103,12 @@ Every ride makes a difference during @hackerhouses & @token2049! 🚗💚`
         </div>
       ) : (
         /* Book Ride Button & Form */
-        <div className="absolute bottom-6 left-4 right-4 z-50">
+        <div className="absolute bottom-0 left-0 right-0 z-50 md:bottom-6 md:left-4 md:right-4">
           
           {showBookingForm ? (
             /* Booking Form */
-            <div className="bg-white rounded-2xl shadow-2xl p-6">
+            <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl p-4 md:p-6 max-h-[80vh] overflow-y-auto"
+                 style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Book a Ride</h2>
                 <button
@@ -1119,7 +1120,7 @@ Every ride makes a difference during @hackerhouses & @token2049! 🚗💚`
               </div>
               
               <form onSubmit={handleBookRide} className="space-y-4">
-                <div className="relative location-input-container">
+                <div className="location-input-container">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Pickup Location
                   </label>
@@ -1133,9 +1134,8 @@ Every ride makes a difference during @hackerhouses & @token2049! 🚗💚`
                   />
                   
                   {/* Pickup Location Options Dropdown */}
-
                   {(pickupAddress && pickupAddress.length >= 2 && (pickupOptions.length > 0 || isSearchingPickup || (pickupSearchCompleted && pickupAddress.length >= 3))) && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                    <div className="w-full mt-2 mb-4 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {pickupOptions.length > 0 ? (
                         pickupOptions.map((option, index) => (
                           <button
@@ -1176,7 +1176,7 @@ Every ride makes a difference during @hackerhouses & @token2049! 🚗💚`
                   )}
                 </div>
 
-                <div className="relative location-input-container">
+                <div className="location-input-container">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Destination
                   </label>
@@ -1191,7 +1191,7 @@ Every ride makes a difference during @hackerhouses & @token2049! 🚗💚`
                   
                   {/* Destination Location Options Dropdown */}
                   {(destinationAddress && destinationAddress.length >= 2 && (destinationOptions.length > 0 || isSearchingDestination || (destinationSearchCompleted && destinationAddress.length >= 3))) && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                    <div className="w-full mt-2 mb-4 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {destinationOptions.length > 0 ? (
                         destinationOptions.map((option, index) => (
                           <button

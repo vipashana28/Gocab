@@ -351,7 +351,19 @@ export async function POST(request: NextRequest) {
       platform: 'web'
     })
 
+    console.log('💾 Attempting to save ride to database...')
+    console.log('📋 Ride data being saved:', JSON.stringify({
+      rideId: ride.rideId,
+      userId: ride.userId,
+      status: ride.status,
+      pickup: ride.pickup,
+      destination: ride.destination,
+      route: ride.route,
+      pricing: ride.pricing
+    }, null, 2))
+    
     await ride.save()
+    console.log('✅ Ride saved successfully to database')
 
     // Find available drivers near the pickup location
     let nearbyDrivers = []
@@ -401,14 +413,9 @@ export async function POST(request: NextRequest) {
     // For now, drivers will poll the API to get ride requests
     console.log(`📢 Broadcasting ride ${ride.rideId} to ${nearbyDrivers.length} nearby drivers`)
     
-    // Update ride status to searching for driver with waiting time
+    // Update ride status to searching for driver
     ride.status = 'requested'
     ride.statusDisplay = 'Finding Driver...'
-    ride.waitingTime = {
-      requestedAt: new Date(),
-      estimatedWaitMinutes: Math.max(2, Math.min(8, 5 - nearbyDrivers.length)), // 2-8 minutes based on driver availability
-      maxWaitMinutes: 10
-    }
     await ride.save()
     
     return NextResponse.json({
