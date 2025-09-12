@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-  } catch (error: any) {
+   } catch (error: any) {
     console.error('Get rides error:', error)
     
     return NextResponse.json(
@@ -323,18 +323,36 @@ export async function POST(request: NextRequest) {
     await ride.save()
 
     // Find available drivers near the pickup location
-    const nearbyDrivers = await User.find({
-      'driverProfile.isOnline': true,
-      'driverProfile.currentLocation': {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [pickup.coordinates.longitude, pickup.coordinates.latitude] // [lng, lat]
-          },
-          $maxDistance: 10000 // 10km radius
-        }
+    let nearbyDrivers = []
+    try {
+      nearbyDrivers = await User.find({
+        'driverProfile.isOnline': true,
+        'driverProfile.currentLocation.coordinates': { $exists: true, $ne: null },
+        'driverProfile.currentLocation.type': 'Point'
+      }).limit(10) // Get up to 10 online drivers
+      
+      // If we have drivers with location data, filter by distance
+      if (nearbyDrivers.length > 0) {
+        nearbyDrivers = await User.find({
+          'driverProfile.isOnline': true,
+          'driverProfile.currentLocation': {
+            $near: {
+              $geometry: {
+                type: 'Point',
+                coordinates: [pickup.coordinates.longitude, pickup.coordinates.latitude] // [lng, lat]
+              },
+              $maxDistance: 10000 // 10km radius
+            }
+          }
+        }).limit(10)
       }
-    }).limit(10) // Get up to 10 nearby drivers
+    } catch (geoError: any) {
+      console.log('Geospatial query failed, falling back to online drivers:', geoError.message)
+      // Fallback to just finding online drivers without location filtering
+      nearbyDrivers = await User.find({
+        'driverProfile.isOnline': true
+      }).limit(10)
+    }
     
     if (nearbyDrivers.length === 0) {
       return NextResponse.json({
@@ -352,9 +370,14 @@ export async function POST(request: NextRequest) {
     // For now, drivers will poll the API to get ride requests
     console.log(`📢 Broadcasting ride ${ride.rideId} to ${nearbyDrivers.length} nearby drivers`)
     
-    // Update ride status to searching for driver
+    // Update ride status to searching for driver with waiting time
     ride.status = 'requested'
     ride.statusDisplay = 'Finding Driver...'
+    ride.waitingTime = {
+      requestedAt: new Date(),
+      estimatedWaitMinutes: Math.max(2, Math.min(8, 5 - nearbyDrivers.length)), // 2-8 minutes based on driver availability
+      maxWaitMinutes: 10
+    }
     await ride.save()
     
     return NextResponse.json({

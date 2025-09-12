@@ -352,9 +352,9 @@ export default function DriverDashboard() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex flex-col md:flex-row">
         {/* Map View */}
-        <div className="flex-1">
+        <div className="flex-1 h-64 md:h-auto">
           {driverLocation ? (
             <MapView 
               center={[driverLocation.latitude, driverLocation.longitude]} 
@@ -371,8 +371,8 @@ export default function DriverDashboard() {
           )}
         </div>
 
-        {/* Ride Management Sidebar */}
-        <div className="w-80 bg-white border-l border-gray-200 overflow-y-auto">
+        {/* Ride Management Panel - Mobile: Bottom sheet, Desktop: Sidebar */}
+        <div className="w-full md:w-80 bg-white border-t md:border-t-0 md:border-l border-gray-200 overflow-y-auto max-h-96 md:max-h-none">
           <div className="p-4">
             {acceptedRide ? (
               /* Accepted Ride Section */

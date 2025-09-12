@@ -49,6 +49,13 @@ export interface IRide extends mongoose.Document {
   completedAt?: Date
   cancelledAt?: Date
   
+  // Waiting Time Information
+  waitingTime?: {
+    requestedAt: Date
+    estimatedWaitMinutes: number
+    maxWaitMinutes: number
+  }
+  
   // Driver Communication
   driverContact?: {
     phone: string
@@ -234,6 +241,25 @@ const rideSchema = new mongoose.Schema<IRide>({
   startedAt: Date,
   completedAt: Date,
   cancelledAt: Date,
+  
+  // Waiting Time Information
+  waitingTime: {
+    requestedAt: {
+      type: Date,
+      default: Date.now
+    },
+    estimatedWaitMinutes: {
+      type: Number,
+      min: 1,
+      max: 60
+    },
+    maxWaitMinutes: {
+      type: Number,
+      min: 1,
+      max: 60,
+      default: 10
+    }
+  },
   
   // Driver Communication
   driverContact: {
