@@ -145,24 +145,56 @@ export async function POST(request: NextRequest) {
     let user = null
     
     if (!isDemoUser) {
-      user = await User.findById(userId)
-      if (!user) {
+      try {
+        // Try to find user by MongoDB _id first
+        if (mongoose.Types.ObjectId.isValid(userId)) {
+          user = await User.findById(userId)
+        }
+        
+        // If not found, try to find by googleId (fallback)
+        if (!user) {
+          user = await User.findOne({ googleId: userId })
+        }
+        
+        // If still not found, try by email (last fallback)
+        if (!user) {
+          user = await User.findOne({ email: userId })
+        }
+        
+        if (!user) {
+          console.log(`User not found with identifier: ${userId}`)
+          return NextResponse.json(
+            { 
+              success: false, 
+              error: { 
+                code: 'USER_NOT_FOUND', 
+                message: 'User not found. Please sign in again.' 
+              } 
+            },
+            { status: 404 }
+          )
+        }
+        
+        console.log(`✅ Found user: ${user.email} (${user._id})`)
+      } catch (dbError: any) {
+        console.error('Database error finding user:', dbError)
         return NextResponse.json(
           { 
             success: false, 
             error: { 
-              code: 'USER_NOT_FOUND', 
-              message: 'User not found' 
+              code: 'DATABASE_ERROR', 
+              message: 'Database error finding user' 
             } 
           },
-          { status: 404 }
+          { status: 500 }
         )
       }
     }
 
-    // Check if user has any active rides
+    // Check if user has any active rides (use the actual user's _id from database)
+    const actualUserId = user?._id || userId
     const activeRide = await Ride.findOne({
-      userId,
+      userId: actualUserId,
       status: { $in: ['requested', 'matched', 'driver_en_route', 'arrived', 'in_progress'] }
     })
     
@@ -291,12 +323,11 @@ export async function POST(request: NextRequest) {
       rideId,
       pickupCode,
       otp,
-      userId,
+      userId: actualUserId,
       pickup,
       destination,
       route: {
         distance: distanceMiles,
-        distanceKm: distanceKm,
         estimatedDuration: estimatedDurationMinutes,
         estimatedFare,
       },
