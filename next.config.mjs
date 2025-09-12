@@ -17,14 +17,9 @@ const nextConfig = {
     ]
   },
   
-  // Configure allowed development origins for mobile testing
+  // Configure for production deployment
   experimental: {
-    allowedOrigins: [
-      '192.168.0.10',
-      '192.168.1.*', 
-      '10.0.0.*',
-      '172.16.*.*'
-    ]
+    serverComponentsExternalPackages: ['mongoose']
   },
   
   env: {
