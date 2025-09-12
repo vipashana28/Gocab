@@ -130,7 +130,16 @@ export async function POST(request: NextRequest) {
       message: 'Ride created successfully',
       data: {
         id: savedRide._id,
-        rideId: savedRide.rideId
+        rideId: savedRide.rideId,
+        status: savedRide.status,
+        pickup: savedRide.pickup,
+        destination: savedRide.destination,
+        route: savedRide.route,
+        carbonFootprint: savedRide.carbonFootprint,
+        pricing: savedRide.pricing,
+        requestedAt: savedRide.requestedAt,
+        otp: savedRide.otp,
+        pickupCode: savedRide.pickupCode
       }
     })
     
