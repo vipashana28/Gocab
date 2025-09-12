@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
-import { Ride, Driver, User } from '@/lib/models'
+import { Ride, User } from '@/lib/models'
 import mongoose from 'mongoose'
 
 export async function GET(request: NextRequest) {
@@ -91,12 +91,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Creating new ride request...')
     
-    // Test environment variables
-    console.log('Environment variables check:', {
-      hasMongoUri: !!process.env.MONGODB_URI,
-      hasNextAuthUrl: !!process.env.NEXTAUTH_URL,
-      nodeEnv: process.env.NODE_ENV
-    })
+   
     
     await connectToDatabase()
     console.log('Database connected for ride creation')
@@ -109,6 +104,11 @@ export async function POST(request: NextRequest) {
       pickupAddress: body.pickup?.address,
       destinationAddress: body.destination?.address
     })
+    
+    // Test Ride model import
+    console.log('Testing Ride model import...')
+    console.log('Ride model available:', !!Ride)
+    console.log('Ride constructor:', typeof Ride)
     
     // Test minimal ride creation first
     console.log('Testing minimal ride creation...')
