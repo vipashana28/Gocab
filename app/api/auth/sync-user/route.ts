@@ -4,9 +4,22 @@ import { User } from '@/lib/models'
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔄 Sync user request started')
+    console.log('📊 Environment check:', {
+      mongoUri: !!process.env.MONGODB_URI,
+      nodeEnv: process.env.NODE_ENV
+    })
+    
     await connectToDatabase()
+    console.log('✅ Database connection established')
     
     const body = await request.json()
+    console.log('📝 Request body received:', {
+      hasGoogleId: !!body.googleId,
+      hasEmail: !!body.email,
+      firstName: body.firstName
+    })
+    
     const { googleId, email, firstName, lastName, profilePicture } = body
 
     if (!googleId || !email) {
@@ -84,15 +97,22 @@ export async function POST(request: NextRequest) {
       data: userData
     })
 
-  } catch (error) {
-    console.error('Sync user error:', error)
+  } catch (error: any) {
+    console.error('❌ Sync user error:', error)
+    console.error('❌ Error details:', {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack?.substring(0, 500)
+    })
     
     return NextResponse.json(
       { 
         success: false, 
         error: { 
           code: 'DATABASE_ERROR', 
-          message: 'Failed to sync user data' 
+          message: 'Failed to sync user data',
+          details: error?.message || 'Unknown error'
         } 
       },
       { status: 500 }

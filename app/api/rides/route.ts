@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get rides error:', error)
     
     return NextResponse.json(
@@ -89,9 +89,20 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🚗 Creating new ride request...')
+    
     await connectToDatabase()
+    console.log('✅ Database connected for ride creation')
     
     const body = await request.json()
+    console.log('📝 Ride request data:', {
+      hasUserId: !!body.userId,
+      hasPickup: !!body.pickup,
+      hasDestination: !!body.destination,
+      pickupAddress: body.pickup?.address,
+      destinationAddress: body.destination?.address
+    })
+    
     const {
       userId,
       pickup,
@@ -366,8 +377,14 @@ export async function POST(request: NextRequest) {
       message: 'Ride request sent to nearby drivers'
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create ride error:', error)
+    console.error('❌ Detailed error:', {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack?.substring(0, 500)
+    })
     
     return NextResponse.json(
       { 
