@@ -131,7 +131,7 @@ const rideSchema = new mongoose.Schema<IRide>({
   },
   driverId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Driver',
+    ref: 'User',
     index: true
   },
   
@@ -387,10 +387,6 @@ rideSchema.index({ rideId: 1 })
 rideSchema.index({ pickupCode: 1 })
 rideSchema.index({ requestedAt: -1 })
 rideSchema.index({ completedAt: -1 })
-
-// Geospatial indexes for location queries
-rideSchema.index({ 'pickup.coordinates': '2dsphere' })
-rideSchema.index({ 'destination.coordinates': '2dsphere' })
 
 // Virtual for ride duration
 rideSchema.virtual('totalDuration').get(function() {
