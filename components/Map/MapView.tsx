@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Loader } from '@googlemaps/js-api-loader'
+import { loadGoogleMaps, isGoogleMapsLoaded, getGoogleMaps } from '@/lib/googleMapsLoader'
 
 // Extend the global Window interface to include google
 declare global {
@@ -35,7 +35,7 @@ interface MapViewProps {
 const MapView = ({ center, zoom, markers = [], routes = [], polylineRoute, fitBounds = false }: MapViewProps) => {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
-  const markersRef = useRef<google.maps.Marker[]>([])
+  const markersRef = useRef<any[]>([])
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
   const polylineRef = useRef<google.maps.Polyline | null>(null)
@@ -54,45 +54,34 @@ const MapView = ({ center, zoom, markers = [], routes = [], polylineRoute, fitBo
     })
   }, [])
 
-  // Initialize Google Maps
+  // Initialize Google Maps using singleton loader
   useEffect(() => {
     const initMap = async () => {
       if (initializingRef.current || mapInstanceRef.current) {
-        console.log('Map already initializing or initialized, skipping...')
+        console.log('🗺️ Map already initializing or initialized, skipping...')
         return
       }
 
       initializingRef.current = true
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
       
       const createMap = (retryCount = 0) => {
         if (mapInstanceRef.current) {
-          console.log('Map already exists, skipping creation')
+          console.log('🗺️ Map instance already exists, skipping creation')
           setIsLoaded(true)
+          initializingRef.current = false
           return
         }
 
-        console.log(`🔍 DOM Debug (attempt ${retryCount + 1}):`, {
-          mapRefCurrent: !!mapRef.current,
-          mapRefElement: mapRef.current,
-          clientWidth: mapRef.current?.clientWidth,
-          clientHeight: mapRef.current?.clientHeight,
-          offsetWidth: mapRef.current?.offsetWidth,
-          offsetHeight: mapRef.current?.offsetHeight,
-          parentElement: mapRef.current?.parentElement,
-          computedStyle: mapRef.current ? window.getComputedStyle(mapRef.current) : null
-        })
-
         if (!mapRef.current) {
-          console.warn(`Map container not found (attempt ${retryCount + 1})`)
+          console.warn(`🗺️ Map container not found (attempt ${retryCount + 1})`)
           
           if (retryCount < 5) {
             const delay = 300 + (retryCount * 200)
-            console.log(`Retrying map creation in ${delay}ms...`)
+            console.log(`🗺️ Retrying map creation in ${delay}ms...`)
             setTimeout(() => createMap(retryCount + 1), delay)
             return
           } else {
-            console.error('Map container not found after 5 attempts')
+            console.error('🗺️ Map container not found after 5 attempts')
             initializingRef.current = false
             if (mountedRef.current) {
               setError('Failed to initialize map container. Please refresh the page.')
@@ -102,15 +91,15 @@ const MapView = ({ center, zoom, markers = [], routes = [], polylineRoute, fitBo
         }
 
         if (mapRef.current.clientWidth === 0 || mapRef.current.clientHeight === 0) {
-          console.warn(`Map container has no dimensions: ${mapRef.current.clientWidth}x${mapRef.current.clientHeight}`)
+          console.warn(`🗺️ Map container has no dimensions: ${mapRef.current.clientWidth}x${mapRef.current.clientHeight}`)
           
           if (retryCount < 5) {
             const delay = 300 + (retryCount * 200)
-            console.log(`Retrying for proper dimensions in ${delay}ms...`)
+            console.log(`🗺️ Retrying for proper dimensions in ${delay}ms...`)
             setTimeout(() => createMap(retryCount + 1), delay)
             return
           } else {
-            console.error('Map container has no dimensions after 5 attempts')
+            console.error('🗺️ Map container has no dimensions after 5 attempts')
             initializingRef.current = false
             if (mountedRef.current) {
               setError('Map container has no dimensions. Please check CSS styling.')
@@ -119,11 +108,12 @@ const MapView = ({ center, zoom, markers = [], routes = [], polylineRoute, fitBo
           }
         }
 
-        console.log('Creating Google Maps instance...')
+        console.log('🗺️ Creating Google Maps instance...')
         
         mapInstanceRef.current = new google.maps.Map(mapRef.current, {
           center: { lat: center[0], lng: center[1] },
           zoom,
+          mapId: 'gocab-map', // Required for Advanced Markers
           mapTypeId: google.maps.MapTypeId.ROADMAP,
           styles: [
             {
@@ -152,7 +142,7 @@ const MapView = ({ center, zoom, markers = [], routes = [], polylineRoute, fitBo
         })
         directionsRendererRef.current.setMap(mapInstanceRef.current)
 
-        console.log('Google Maps created successfully')
+        console.log('✅ Google Maps created successfully')
         initializingRef.current = false
         
         if (mountedRef.current) {
@@ -162,63 +152,36 @@ const MapView = ({ center, zoom, markers = [], routes = [], polylineRoute, fitBo
       }
 
       try {
-        if (!apiKey) {
-          throw new Error('Google Maps API key not found. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your environment variables.')
-        }
-
-        if (window.google && window.google.maps) {
+        // Check if Google Maps is already loaded
+        if (isGoogleMapsLoaded()) {
+          console.log('🗺️ Google Maps already loaded, creating map...')
           setTimeout(() => createMap(), 100)
           return
         }
 
-        const loader = new Loader({
-          apiKey,
-          version: 'weekly',
-          libraries: ['places', 'geometry']
-        })
-
-        console.log('Loading Google Maps with API key:', apiKey.substring(0, 10) + '...')
-        await loader.load()
-        console.log('Google Maps loaded successfully')
+        // Load Google Maps using singleton loader
+        console.log('🗺️ Loading Google Maps via singleton loader...')
+        await loadGoogleMaps()
+        console.log('✅ Google Maps loaded successfully via singleton')
         
         setTimeout(() => createMap(), 100)
 
       } catch (err) {
-        console.error('Loader failed, trying direct script loading:', err)
-        
-        try {
-          const script = document.createElement('script')
-          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&v=weekly`
-          script.async = true
-          script.defer = true
-          
-          await new Promise<void>((resolve, reject) => {
-            script.onload = () => {
-              console.log('Google Maps script loaded directly')
-              resolve()
-            }
-            script.onerror = () => reject(new Error('Failed to load Google Maps script'))
-            document.head.appendChild(script)
-          })
-          
-          setTimeout(() => createMap(), 100)
-        } catch (scriptErr) {
-          console.error('Direct script loading also failed:', scriptErr)
-          initializingRef.current = false
-          if (mountedRef.current) {
-            setError('Failed to load Google Maps. Please check your internet connection and API key.')
-          }
+        console.error('❌ Failed to load Google Maps:', err)
+        initializingRef.current = false
+        if (mountedRef.current) {
+          setError('Failed to load Google Maps. Please check your internet connection and API key.')
         }
       }
     }
 
     // Wait for DOM element to be available
     if (!mapRef.current) {
-      console.log('DOM element not ready yet, waiting...')
+      console.log('🗺️ DOM element not ready yet, waiting...')
       const checkDOM = () => {
         if (mapRef.current && mountedRef.current) {
-          console.log('DOM element now available, initializing map...')
-    initMap()
+          console.log('🗺️ DOM element now available, initializing map...')
+          initMap()
         } else if (mountedRef.current) {
           setTimeout(checkDOM, 100)
         }
@@ -290,13 +253,15 @@ const MapView = ({ center, zoom, markers = [], routes = [], polylineRoute, fitBo
     }
   }, [center, zoom, isLoaded])
 
-  // Update markers
+  // Update markers using modern AdvancedMarkerElement
   useEffect(() => {
     if (!mapInstanceRef.current || !isLoaded || !mountedRef.current) return
 
     // Clear existing markers
-    markersRef.current.forEach((marker: google.maps.Marker) => {
-      if (mountedRef.current) marker.setMap(null)
+    markersRef.current.forEach((marker: any) => {
+      if (mountedRef.current && marker.setMap) {
+        marker.setMap(null)
+      }
     })
     markersRef.current = []
 
@@ -319,26 +284,66 @@ const MapView = ({ center, zoom, markers = [], routes = [], polylineRoute, fitBo
           iconUrl = '/icons/pickup-pin.svg'
       }
 
-      const marker = new google.maps.Marker({
-        position: { lat: markerData.position[0], lng: markerData.position[1] },
-        map: mapInstanceRef.current,
-        title: markerData.popupText,
-        icon: {
-          url: iconUrl,
-          scaledSize: new google.maps.Size(iconSize.width, iconSize.height),
-          anchor: new google.maps.Point(iconSize.width / 2, iconSize.height)
+      try {
+        // Try to use AdvancedMarkerElement if available (newer API)
+        if (google.maps.marker?.AdvancedMarkerElement) {
+          // Create custom icon element
+          const iconElement = document.createElement('img')
+          iconElement.src = iconUrl
+          iconElement.style.width = `${iconSize.width}px`
+          iconElement.style.height = `${iconSize.height}px`
+          iconElement.alt = markerData.popupText
+
+          const marker = new google.maps.marker.AdvancedMarkerElement({
+            map: mapInstanceRef.current,
+            position: { lat: markerData.position[0], lng: markerData.position[1] },
+            content: iconElement,
+            title: markerData.popupText
+          })
+
+          // Add click listener for info window
+          const infoWindow = new google.maps.InfoWindow({
+            content: markerData.popupText
+          })
+
+          marker.addListener('click', () => {
+            infoWindow.open(mapInstanceRef.current, marker)
+          })
+
+          markersRef.current.push(marker)
+        } else {
+          // Fallback to legacy Marker for older API versions
+          const marker = new google.maps.Marker({
+            position: { lat: markerData.position[0], lng: markerData.position[1] },
+            map: mapInstanceRef.current,
+            title: markerData.popupText,
+            icon: {
+              url: iconUrl,
+              scaledSize: new google.maps.Size(iconSize.width, iconSize.height),
+              anchor: new google.maps.Point(iconSize.width / 2, iconSize.height)
+            }
+          })
+
+          const infoWindow = new google.maps.InfoWindow({
+            content: markerData.popupText
+          })
+
+          marker.addListener('click', () => {
+            infoWindow.open(mapInstanceRef.current, marker)
+          })
+
+          markersRef.current.push(marker)
         }
-      })
-
-      const infoWindow = new google.maps.InfoWindow({
-        content: markerData.popupText
-      })
-
-      marker.addListener('click', () => {
-        infoWindow.open(mapInstanceRef.current, marker)
-      })
-
-      markersRef.current.push(marker)
+      } catch (error) {
+        console.warn('Failed to create marker:', error)
+        // Fallback to basic marker without custom icon
+        const marker = new google.maps.Marker({
+          position: { lat: markerData.position[0], lng: markerData.position[1] },
+          map: mapInstanceRef.current,
+          title: markerData.popupText
+        })
+        markersRef.current.push(marker)
+      }
     })
   }, [markers, isLoaded])
 

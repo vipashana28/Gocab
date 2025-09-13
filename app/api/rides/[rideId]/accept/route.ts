@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
-import { Ride, User } from '@/lib/models'
+import { Ride, Driver } from '@/lib/models'
 import mongoose from 'mongoose'
 
 export async function POST(
@@ -12,17 +12,35 @@ export async function POST(
     
     const { rideId } = params
     const body = await request.json()
-    const { driverId, action } = body // action: 'accept' | 'decline'
+    const { driverId, driverLocation } = body
 
-    // Validate driver ID
-    if (!mongoose.Types.ObjectId.isValid(driverId)) {
+    console.log(' Driver accepting ride:', { rideId, driverId })
+
+    // Validate required fields
+    if (!driverId) {
       return NextResponse.json({
         success: false,
         error: {
-          code: 'INVALID_DRIVER_ID',
-          message: 'Invalid driver ID format'
+          code: 'MISSING_DRIVER_ID',
+          message: 'Driver ID is required'
         }
       }, { status: 400 })
+    }
+
+    // Validate driver location if provided
+    if (driverLocation) {
+      if (typeof driverLocation.latitude !== 'number' || 
+          typeof driverLocation.longitude !== 'number' ||
+          !Number.isFinite(driverLocation.latitude) ||
+          !Number.isFinite(driverLocation.longitude)) {
+        return NextResponse.json({
+          success: false,
+          error: {
+            code: 'INVALID_LOCATION',
+            message: 'Valid driver location (latitude, longitude) is required'
+          }
+        }, { status: 400 })
+      }
     }
 
     // Find the ride
@@ -43,127 +61,177 @@ export async function POST(
       }, { status: 404 })
     }
 
-    // Check if ride is still available for acceptance
+    // Check if ride is in correct status for acceptance
     if (ride.status !== 'requested') {
       return NextResponse.json({
         success: false,
         error: {
-          code: 'RIDE_NOT_AVAILABLE',
-          message: 'Ride is no longer available for acceptance'
+          code: 'INVALID_RIDE_STATUS',
+          message: `Ride cannot be accepted. Current status: ${ride.status}`
+        }
+      }, { status: 400 })
+    }
+
+    // Check if ride already has a driver
+    if (ride.driverId) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'RIDE_ALREADY_ASSIGNED',
+          message: 'Ride is already assigned to another driver'
         }
       }, { status: 409 })
     }
 
-    // Get driver details
-    const driver = await User.findById(driverId)
-    if (!driver || !driver.driverProfile?.isOnline) {
+    // Find and validate the driver
+    const driver = await Driver.findById(driverId)
+    if (!driver) {
       return NextResponse.json({
         success: false,
         error: {
-          code: 'DRIVER_NOT_AVAILABLE',
-          message: 'Driver not found or not online'
+          code: 'DRIVER_NOT_FOUND',
+          message: 'Driver not found'
         }
       }, { status: 404 })
     }
 
-    if (action === 'decline') {
-      // Log the decline (for analytics) but don't change ride status
-      console.log(`Driver ${driverId} declined ride ${rideId}`)
-      
+    // Check if driver is available
+    if (!driver.isAvailable || !driver.isOnline || driver.status !== 'active') {
       return NextResponse.json({
-        success: true,
-        message: 'Ride declined'
-      })
+        success: false,
+        error: {
+          code: 'DRIVER_NOT_AVAILABLE',
+          message: 'Driver is not available for rides'
+        }
+      }, { status: 400 })
     }
 
-    if (action === 'accept') {
-      // Check if driver is within reasonable distance (10km)
-      const driverCoords = driver.driverProfile.currentLocation.coordinates // [lng, lat]
-      const driverLocation = {
-        latitude: driverCoords[1],
-        longitude: driverCoords[0]
+    // Update ride with driver assignment
+    const updateData: any = {
+      driverId: new mongoose.Types.ObjectId(driverId),
+      status: 'matched',
+      matchedAt: new Date(),
+      driverContact: {
+        name: driver.firstName + ' ' + (driver.lastName || ''),
+        phone: driver.phone,
+        vehicleInfo: `${driver.vehicle.make} ${driver.vehicle.model} (${driver.vehicle.color})`,
+        licensePlate: driver.vehicle.licensePlate,
+        photo: driver.profilePhoto
       }
-      
-      const pickupCoords = ride.pickup.coordinates
-      const distance = Math.sqrt(
-        Math.pow(driverLocation.latitude - pickupCoords.latitude, 2) +
-        Math.pow(driverLocation.longitude - pickupCoords.longitude, 2)
-      ) * 111 // Rough conversion to km
-      
-      if (distance > 10) {
-        return NextResponse.json({
-          success: false,
-          error: {
-            code: 'DRIVER_TOO_FAR',
-            message: 'Driver is too far from pickup location'
-          }
-        }, { status: 400 })
-      }
+    }
 
-      // Calculate estimated arrival time
-      const estimatedArrivalMinutes = Math.max(2, Math.min(15, Math.round(distance * 3))) // 2-15 minutes based on distance
-
-      // Update ride with driver assignment
-      ride.status = 'matched'
-      ride.matchedAt = new Date()
-      ride.driverId = driverId
-      ride.driverContact = {
-        phone: driver.phone || '+1 (555) 000-0000',
-        name: `${driver.firstName} ${driver.lastName}`,
-        vehicleInfo: driver.driverProfile?.vehicleInfo || '2023 Toyota Camry - Blue',
-        licensePlate: driver.driverProfile?.licensePlate || 'GC-' + Math.floor(Math.random() * 999).toString().padStart(3, '0'),
-        photo: driver.profilePicture || `https://i.pravatar.cc/150?u=${driver.email}`,
-        rating: driver.driverProfile?.rating || 4.8
-      }
-      ride.driverLocation = {
-        coordinates: driverLocation,
+    // Add driver location if provided
+    if (driverLocation) {
+      updateData.driverLocation = {
+        coordinates: {
+          latitude: driverLocation.latitude,
+          longitude: driverLocation.longitude
+        },
         lastUpdated: new Date()
       }
-      ride.estimatedArrival = `${estimatedArrivalMinutes} minutes`
-      ride.statusDisplay = 'Driver Found'
-      
-      await ride.save()
-
-      // Mark driver as busy (optional - depends on business logic)
-      driver.driverProfile.isOnline = true // Keep online but they'll get filtered out by having an active ride
-      await driver.save()
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          id: ride._id,
-          rideId: ride.rideId,
-          pickupCode: ride.pickupCode,
-          otp: ride.otp,
-          status: ride.status,
-          statusDisplay: ride.statusDisplay,
-          pickup: ride.pickup,
-          destination: ride.destination,
-          driverContact: ride.driverContact,
-          driverLocation: ride.driverLocation,
-          estimatedArrival: ride.estimatedArrival,
-          matchedAt: ride.matchedAt
-        },
-        message: 'Ride accepted successfully'
-      })
     }
 
-    return NextResponse.json({
-      success: false,
-      error: {
-        code: 'INVALID_ACTION',
-        message: 'Action must be either "accept" or "decline"'
-      }
-    }, { status: 400 })
+    const updatedRide = await Ride.findByIdAndUpdate(
+      ride._id,
+      updateData,
+      { new: true }
+    )
 
-  } catch (error) {
-    console.error('Ride accept/decline error:', error)
+    // Update driver availability
+    await Driver.findByIdAndUpdate(driverId, {
+      isAvailable: false,
+      currentRideId: ride._id,
+      lastLocationUpdate: new Date(),
+      ...(driverLocation && {
+        'currentLocation.coordinates': [driverLocation.longitude, driverLocation.latitude],
+        'currentLocation.lastUpdated': new Date()
+      })
+    })
+
+    console.log('✅ Ride accepted successfully:', updatedRide._id)
+
+    return NextResponse.json({
+      success: true,
+      message: 'Ride accepted successfully',
+      data: {
+        rideId: updatedRide.rideId,
+        status: updatedRide.status,
+        driverId: updatedRide.driverId,
+        driverContact: updatedRide.driverContact,
+        matchedAt: updatedRide.matchedAt,
+        pickup: updatedRide.pickup,
+        destination: updatedRide.destination,
+        otp: updatedRide.otp,
+        pickupCode: updatedRide.pickupCode
+      }
+    })
+
+  } catch (error: any) {
+    console.error('❌ Error accepting ride:', error)
     
     return NextResponse.json({
       success: false,
       error: {
-        code: 'DATABASE_ERROR',
-        message: 'Failed to process ride request'
+        code: 'SERVER_ERROR',
+        message: 'Failed to accept ride',
+        details: error.message
+      }
+    }, { status: 500 })
+  }
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { rideId: string } }
+) {
+  try {
+    await connectToDatabase()
+    
+    const { rideId } = params
+
+    // Find the ride
+    const ride = await Ride.findOne({ 
+      $or: [
+        { _id: mongoose.Types.ObjectId.isValid(rideId) ? rideId : null },
+        { rideId: rideId }
+      ]
+    }).populate('driverId', 'firstName lastName phone vehicle profilePhoto')
+
+    if (!ride) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'RIDE_NOT_FOUND',
+          message: 'Ride not found'
+        }
+      }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        rideId: ride.rideId,
+        status: ride.status,
+        pickup: ride.pickup,
+        destination: ride.destination,
+        driverContact: ride.driverContact,
+        driverLocation: ride.driverLocation,
+        otp: ride.otp,
+        pickupCode: ride.pickupCode,
+        requestedAt: ride.requestedAt,
+        matchedAt: ride.matchedAt
+      }
+    })
+
+  } catch (error: any) {
+    console.error('❌ Error fetching ride:', error)
+    
+    return NextResponse.json({
+      success: false,
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'Failed to fetch ride details',
+        details: error.message
       }
     }, { status: 500 })
   }

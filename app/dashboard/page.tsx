@@ -88,36 +88,54 @@ export default function DashboardPage() {
   const [isSearchingDestination, setIsSearchingDestination] = useState(false)
 
 
-  // Memoize map markers to prevent re-renders
+  // Memoize map markers to prevent re-renders with proper coordinate guards
   const markers: MapMarker[] = useMemo(() => {
     const allMarkers: MapMarker[] = []
     if (activeRide) {
-      // Pickup marker
-      allMarkers.push({
-        position: [
-          activeRide.pickup.coordinates.latitude,
-          activeRide.pickup.coordinates.longitude,
-        ],
-        popupText: 'Pickup Location',
-        icon: 'pickup',
-      })
-      // Destination marker
-      allMarkers.push({
-        position: [
-          activeRide.destination.coordinates.latitude,
-          activeRide.destination.coordinates.longitude,
-        ],
-        popupText: 'Destination',
-        icon: 'destination',
-      })
-      // Driver marker
-      if (activeRide.driverLocation) {
+      // Pickup marker - with coordinate safety checks
+      if (activeRide.pickup?.coordinates && 
+          typeof activeRide.pickup.coordinates.latitude === 'number' && 
+          typeof activeRide.pickup.coordinates.longitude === 'number' &&
+          Number.isFinite(activeRide.pickup.coordinates.latitude) &&
+          Number.isFinite(activeRide.pickup.coordinates.longitude)) {
+        allMarkers.push({
+          position: [
+            activeRide.pickup.coordinates.latitude,
+            activeRide.pickup.coordinates.longitude,
+          ],
+          popupText: 'Pickup Location',
+          icon: 'pickup',
+        })
+      }
+      
+      // Destination marker - with coordinate safety checks
+      if (activeRide.destination?.coordinates && 
+          typeof activeRide.destination.coordinates.latitude === 'number' && 
+          typeof activeRide.destination.coordinates.longitude === 'number' &&
+          Number.isFinite(activeRide.destination.coordinates.latitude) &&
+          Number.isFinite(activeRide.destination.coordinates.longitude)) {
+        allMarkers.push({
+          position: [
+            activeRide.destination.coordinates.latitude,
+            activeRide.destination.coordinates.longitude,
+          ],
+          popupText: 'Destination',
+          icon: 'destination',
+        })
+      }
+      
+      // Driver marker - with coordinate safety checks
+      if (activeRide.driverLocation?.coordinates && 
+          typeof activeRide.driverLocation.coordinates.latitude === 'number' && 
+          typeof activeRide.driverLocation.coordinates.longitude === 'number' &&
+          Number.isFinite(activeRide.driverLocation.coordinates.latitude) &&
+          Number.isFinite(activeRide.driverLocation.coordinates.longitude)) {
         allMarkers.push({
           position: [
             activeRide.driverLocation.coordinates.latitude,
             activeRide.driverLocation.coordinates.longitude,
           ],
-          popupText: `Driver: ${activeRide.driverContact?.name}`,
+          popupText: `Driver: ${activeRide.driverContact?.name || 'Unknown'}`,
           icon: 'driver',
         })
       }
@@ -256,13 +274,13 @@ export default function DashboardPage() {
     if (isAuthenticated && user) {
       checkActiveRides()
       
-      // Only poll when not on first load
-      if (!isFirstLoad) {
+      // Only poll when not on first load and no stable active ride
+      if (!isFirstLoad && (!activeRide || activeRide.status === 'requested')) {
         const interval = setInterval(checkActiveRides, 3000) // Poll every 3 seconds for faster driver matching
         return () => clearInterval(interval)
       }
     }
-  }, [isAuthenticated, user, activeRide, isFirstLoad, isSearchingForDriver])
+  }, [isAuthenticated, user, isFirstLoad, activeRide?.status])
 
   // Handle location input with disambiguation
   const handleLocationInput = async (address: string, type: 'pickup' | 'destination') => {
@@ -302,12 +320,26 @@ export default function DashboardPage() {
         let filteredResults = data.data
         
         if (userLocation) {
-          // Calculate distance to user for each result and sort by proximity
+          // Calculate distance to user for each result and sort by proximity with coordinate guards
           filteredResults = data.data.map((location: any) => {
-            const distance = Math.sqrt(
-              Math.pow(location.coordinates.latitude - userLocation.latitude, 2) +
-              Math.pow(location.coordinates.longitude - userLocation.longitude, 2)
-            )
+            let distance = Infinity // Default to far distance if coordinates invalid
+            
+            if (location.coordinates && 
+                userLocation &&
+                typeof location.coordinates.latitude === 'number' &&
+                typeof location.coordinates.longitude === 'number' &&
+                typeof userLocation.latitude === 'number' &&
+                typeof userLocation.longitude === 'number' &&
+                Number.isFinite(location.coordinates.latitude) &&
+                Number.isFinite(location.coordinates.longitude) &&
+                Number.isFinite(userLocation.latitude) &&
+                Number.isFinite(userLocation.longitude)) {
+              distance = Math.sqrt(
+                Math.pow(location.coordinates.latitude - userLocation.latitude, 2) +
+                Math.pow(location.coordinates.longitude - userLocation.longitude, 2)
+              )
+            }
+            
             return { ...location, distanceToUser: distance }
           }).sort((a: any, b: any) => a.distanceToUser - b.distanceToUser)
         }
@@ -460,8 +492,17 @@ export default function DashboardPage() {
   useEffect(() => {
     if (activeRide && activeRide.status !== 'completed' && activeRide.status !== 'cancelled') {
       const interval = setInterval(() => {
-        // Simulate driver movement towards pickup location
-        if (activeRide.driverLocation && activeRide.pickup?.coordinates) {
+        // Simulate driver movement towards pickup location with coordinate guards
+        if (activeRide.driverLocation?.coordinates && 
+            activeRide.pickup?.coordinates &&
+            typeof activeRide.driverLocation.coordinates.latitude === 'number' &&
+            typeof activeRide.driverLocation.coordinates.longitude === 'number' &&
+            typeof activeRide.pickup.coordinates.latitude === 'number' &&
+            typeof activeRide.pickup.coordinates.longitude === 'number' &&
+            Number.isFinite(activeRide.driverLocation.coordinates.latitude) &&
+            Number.isFinite(activeRide.driverLocation.coordinates.longitude) &&
+            Number.isFinite(activeRide.pickup.coordinates.latitude) &&
+            Number.isFinite(activeRide.pickup.coordinates.longitude)) {
           const driverLat = activeRide.driverLocation.coordinates.latitude
           const driverLng = activeRide.driverLocation.coordinates.longitude
           const pickupLat = activeRide.pickup.coordinates.latitude

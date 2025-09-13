@@ -74,10 +74,15 @@ export async function POST(request: NextRequest) {
     console.log('Step 2: Body parsed:', JSON.stringify(body, null, 2))
     
     console.log('Step 3: Creating ride data...')
+    
+    // Generate random OTP (4 digits) and pickup code (6 digits)
+    const otp = Math.floor(1000 + Math.random() * 9000).toString()
+    const pickupCode = Math.floor(100000 + Math.random() * 900000).toString()
+    
     const rideData = {
       rideId: 'SIMPLE_' + Date.now(),
-      pickupCode: '123456',
-      otp: '1234',
+      pickupCode: pickupCode,
+      otp: otp,
       userId: new mongoose.Types.ObjectId(body.userId),
       pickup: body.pickup,
       destination: body.destination,

@@ -66,14 +66,24 @@ export default function FareEstimation({
   const [error, setError] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(true)
 
-  // Create stable key for useEffect to prevent unnecessary re-renders
+  // Create stable key for useEffect to prevent unnecessary re-renders with coordinate guards
   const requestKey = useMemo(() => {
     if (!pickup?.address || !destination?.address) return null
     
-    const pickupKey = pickup.coordinates 
+    // Safe coordinate access with proper validation
+    const pickupKey = (pickup.coordinates && 
+                      typeof pickup.coordinates.latitude === 'number' && 
+                      typeof pickup.coordinates.longitude === 'number' &&
+                      Number.isFinite(pickup.coordinates.latitude) &&
+                      Number.isFinite(pickup.coordinates.longitude))
       ? `${pickup.coordinates.latitude},${pickup.coordinates.longitude}` 
       : pickup.address
-    const destKey = destination.coordinates 
+      
+    const destKey = (destination.coordinates && 
+                    typeof destination.coordinates.latitude === 'number' && 
+                    typeof destination.coordinates.longitude === 'number' &&
+                    Number.isFinite(destination.coordinates.latitude) &&
+                    Number.isFinite(destination.coordinates.longitude))
       ? `${destination.coordinates.latitude},${destination.coordinates.longitude}` 
       : destination.address
     

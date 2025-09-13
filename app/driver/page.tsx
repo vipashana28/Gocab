@@ -132,18 +132,32 @@ export default function DriverDashboard() {
     }
   }, [isAuthenticated, user?.id, acceptedRide])
 
-  // Fetch ride requests and play notification sound for new requests
+  // Fetch available ride requests and play notification sound for new requests
   useEffect(() => {
     let requestInterval: NodeJS.Timeout
 
     if (driverLocation && user?.id) {
-      const fetchRideRequests = async () => {
+      const fetchAvailableRides = async () => {
         try {
-          const response = await fetch(`/api/drivers/rides?driverId=${user.id}`)
+          const response = await fetch(
+            `/api/drivers/available-rides?driverId=${user.id}&lat=${driverLocation.latitude}&lng=${driverLocation.longitude}&maxDistance=5000`
+          )
           if (response.ok) {
             const data = await response.json()
             if (data.success) {
-              const newRequests = data.data || []
+              const newRequests = data.data.map((ride: any) => ({
+                id: ride.id,
+                rideId: ride.rideId,
+                otp: ride.otp,
+                pickupAddress: ride.pickup?.address || 'Unknown pickup',
+                destinationAddress: ride.destination?.address || 'Unknown destination',
+                pickupCoordinates: ride.pickup?.coordinates || { latitude: 0, longitude: 0 },
+                estimatedFare: ride.pricing?.totalEstimated || 0,
+                distanceToPickup: ride.distanceToPickup || 0,
+                passengerName: 'Passenger', // Will be enhanced with real user data
+                requestedAt: new Date(ride.requestedAt),
+                estimatedTimeToPickup: ride.estimatedTimeToPickup
+              }))
               
               // Play notification sound if there are new ride requests
               if (newRequests.length > previousRequestCount && previousRequestCount > 0) {
@@ -155,13 +169,13 @@ export default function DriverDashboard() {
             }
           }
         } catch (error) {
-          console.error('Failed to fetch ride requests:', error)
+          console.error('Failed to fetch available rides:', error)
         }
       }
 
       // Fetch immediately and then every 8 seconds
-      fetchRideRequests()
-      requestInterval = setInterval(fetchRideRequests, 8000)
+      fetchAvailableRides()
+      requestInterval = setInterval(fetchAvailableRides, 8000)
     } else {
       setRideRequests([])
       setPreviousRequestCount(0)
@@ -228,18 +242,25 @@ export default function DriverDashboard() {
     
     setIsProcessingRide(true)
     try {
+      console.log('🚗 Accepting ride:', rideRequest.rideId)
+      
       const response = await fetch(`/api/rides/${rideRequest.rideId}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           driverId: user?.id,
-          action: 'accept'
+          driverLocation: driverLocation ? {
+            latitude: driverLocation.latitude,
+            longitude: driverLocation.longitude
+          } : null
         })
       })
 
       const result = await response.json()
 
       if (response.ok && result.success) {
+        console.log('✅ Ride accepted successfully:', result.data)
+        
         // Set the accepted ride with full details including OTP
         setAcceptedRide({
           ...result.data,
