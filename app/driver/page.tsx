@@ -47,6 +47,8 @@ export default function DriverDashboard() {
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false)
   const [previousRequestCount, setPreviousRequestCount] = useState(0)
   const [isProcessingRide, setIsProcessingRide] = useState(false)
+  const [activeNotification, setActiveNotification] = useState<RideRequest | null>(null)
+  const [notificationTimeLeft, setNotificationTimeLeft] = useState(0)
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -175,6 +177,13 @@ export default function DriverDashboard() {
           }
           return prev
         })
+        
+        // Show persistent notification for the new ride
+        if (!activeNotification) {
+          console.log('🚨 Showing persistent notification for new ride')
+          setActiveNotification(newRequest)
+          setNotificationTimeLeft(30) // 30 seconds to respond
+        }
       })
       
       // Listen for notification sounds
@@ -189,7 +198,7 @@ export default function DriverDashboard() {
         unsubscribeSound()
       }
     }
-  }, [isAuthenticated, user?.id, isConnected, joinAsDriver, onNewRide, onNotificationSound])
+  }, [isAuthenticated, user?.id, isConnected, joinAsDriver, onNewRide, onNotificationSound, activeNotification])
 
   // Fallback polling when WebSocket is not connected (reduced frequency)
   useEffect(() => {
@@ -249,6 +258,30 @@ export default function DriverDashboard() {
       if (requestInterval) clearInterval(requestInterval)
     }
   }, [driverLocation, user?.id, isConnected, previousRequestCount])
+
+  // Notification countdown timer
+  useEffect(() => {
+    let countdownTimer: NodeJS.Timeout
+    
+    if (activeNotification && notificationTimeLeft > 0) {
+      countdownTimer = setInterval(() => {
+        setNotificationTimeLeft(prev => {
+          if (prev <= 1) {
+            // Auto-decline when timer reaches 0
+            console.log('⏰ Notification timed out, auto-declining ride')
+            setActiveNotification(null)
+            setRideRequests(prev => prev.filter(req => req.id !== activeNotification.id))
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
+    
+    return () => {
+      if (countdownTimer) clearInterval(countdownTimer)
+    }
+  }, [activeNotification, notificationTimeLeft])
 
   // Play notification sound for new ride requests
   const playNotificationSound = () => {
@@ -340,6 +373,8 @@ export default function DriverDashboard() {
         
         // Clear all ride requests as driver is now busy
         setRideRequests([])
+        setActiveNotification(null) // Clear active notification
+        setNotificationTimeLeft(0)
         console.log('✅ Ride accepted successfully. OTP:', result.data.otp)
       } else {
         alert(result.error?.message || 'Failed to accept ride')
@@ -357,24 +392,27 @@ export default function DriverDashboard() {
     
     setIsProcessingRide(true)
     try {
-      const response = await fetch(`/api/rides/${rideId}/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          driverId: user?.id,
-          action: 'decline'
-        })
-      })
-
-      if (response.ok) {
-        // Remove declined ride from list
-        setRideRequests(prev => prev.filter(req => req.rideId === rideId ? false : true))
-        console.log('Ride declined')
-      }
+      // For now, just remove from local state (no server call needed for decline)
+      setRideRequests(prev => prev.filter(req => req.rideId !== rideId))
+      setActiveNotification(null) // Clear active notification
+      setNotificationTimeLeft(0)
+      console.log('✅ Ride declined:', rideId)
     } catch (error) {
       console.error('Failed to decline ride:', error)
     } finally {
       setIsProcessingRide(false)
+    }
+  }
+
+  const handleAcceptNotification = () => {
+    if (activeNotification) {
+      handleAcceptRide(activeNotification)
+    }
+  }
+
+  const handleDeclineNotification = () => {
+    if (activeNotification) {
+      handleDeclineRide(activeNotification.rideId)
     }
   }
 
@@ -450,6 +488,100 @@ export default function DriverDashboard() {
       {locationError && (
         <div className="bg-red-50 border-b border-red-200 text-red-700 px-4 py-3">
           <p className="text-sm text-center">{locationError}</p>
+        </div>
+      )}
+
+      {/* Persistent Ride Notification Overlay */}
+      {activeNotification && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 animate-pulse-slow">
+            {/* Notification Header */}
+            <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white p-4 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                    <span className="text-lg">🚗</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold">New Ride Request!</h3>
+                    <p className="text-sm opacity-90">Tap to accept or decline</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold">₹{activeNotification.estimatedFare}</div>
+                  <div className="text-sm opacity-90">{activeNotification.distanceToPickup.toFixed(1)} km away</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Countdown Timer */}
+            <div className="bg-orange-100 px-4 py-2">
+              <div className="flex items-center justify-center space-x-2">
+                <span className="text-orange-600 font-semibold">⏰ Time remaining:</span>
+                <span className="text-2xl font-bold text-orange-700">{notificationTimeLeft}s</span>
+              </div>
+              <div className="w-full bg-orange-200 rounded-full h-2 mt-2">
+                <div 
+                  className="bg-orange-500 h-2 rounded-full transition-all duration-1000"
+                  style={{ width: `${(notificationTimeLeft / 30) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Ride Details */}
+            <div className="p-4 space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-start space-x-3">
+                  <div className="w-4 h-4 bg-green-500 rounded-full mt-1 flex-shrink-0"></div>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PICKUP</p>
+                    <p className="text-sm font-medium text-gray-900">{activeNotification.pickupAddress}</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <div className="w-4 h-4 bg-red-500 rounded-full mt-1 flex-shrink-0"></div>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">DESTINATION</p>
+                    <p className="text-sm font-medium text-gray-900">{activeNotification.destinationAddress}</p>
+                  </div>
+                </div>
+              </div>
+
+              {activeNotification.estimatedTimeToPickup && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm font-medium text-blue-900">
+                    🕐 Estimated pickup time: {activeNotification.estimatedTimeToPickup}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="p-4 pt-0 space-y-3">
+              <button
+                onClick={handleAcceptNotification}
+                disabled={isProcessingRide}
+                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 px-6 rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-lg transition-all duration-200 shadow-lg"
+              >
+                {isProcessingRide ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2"></div>
+                    Accepting...
+                  </div>
+                ) : (
+                  '✅ Accept Ride'
+                )}
+              </button>
+              
+              <button
+                onClick={handleDeclineNotification}
+                disabled={isProcessingRide}
+                className="w-full bg-gradient-to-r from-gray-500 to-gray-600 text-white py-3 px-6 rounded-xl hover:from-gray-600 hover:to-gray-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all duration-200"
+              >
+                ❌ Decline
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
