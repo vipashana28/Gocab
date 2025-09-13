@@ -416,6 +416,67 @@ export default function DriverDashboard() {
     }
   }
 
+  const handleNavigateToPickup = () => {
+    if (acceptedRide && acceptedRide.pickupCoordinates) {
+      const { latitude, longitude } = acceptedRide.pickupCoordinates
+      // Open Google Maps with navigation to pickup location
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`
+      window.open(mapsUrl, '_blank')
+      console.log('🧭 Opening navigation to pickup location')
+    }
+  }
+
+  const handleStartRide = async () => {
+    if (!acceptedRide) return
+    
+    try {
+      const response = await fetch(`/api/rides/${acceptedRide.rideId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'in_progress',
+          driverId: user?.id
+        })
+      })
+
+      if (response.ok) {
+        setAcceptedRide((prev: any) => prev ? { ...prev, status: 'in_progress' } : null)
+        console.log('▶️ Ride started successfully')
+      } else {
+        alert('Failed to start ride')
+      }
+    } catch (error) {
+      console.error('Failed to start ride:', error)
+      alert('Network error while starting ride')
+    }
+  }
+
+  const handleCompleteRide = async () => {
+    if (!acceptedRide) return
+    
+    try {
+      const response = await fetch(`/api/rides/${acceptedRide.rideId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'completed',
+          driverId: user?.id
+        })
+      })
+
+      if (response.ok) {
+        setAcceptedRide(null)
+        console.log('✅ Ride completed successfully')
+        alert('Ride completed! Thank you for using GoCabs eco-friendly service.')
+      } else {
+        alert('Failed to complete ride')
+      }
+    } catch (error) {
+      console.error('Failed to complete ride:', error)
+      alert('Network error while completing ride')
+    }
+  }
+
   // Show loading if still checking auth
   if (isLoading || status === 'loading') {
     return (
@@ -433,17 +494,17 @@ export default function DriverDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-white">
       {/* Mobile-First Header */}
-      <header className="bg-white/90 backdrop-blur-sm shadow-lg border-b sticky top-0 z-40">
+      <header className="bg-white shadow-lg border-b border-green-100 sticky top-0 z-40">
         <div className="px-4 py-3">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
                 <span className="text-white font-bold text-lg">G</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                   GoCabs Driver
                 </h1>
                 <p className="text-xs text-gray-500">Hi, {user?.firstName}!</p>
@@ -478,10 +539,10 @@ export default function DriverDashboard() {
             </div>
             
             <div className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-medium ${
-              isConnected ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-red-100 text-red-800 border border-red-200'
+              isConnected ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'
             }`}>
               <span className={`w-3 h-3 rounded-full ${
-                isConnected ? 'bg-blue-500 animate-pulse' : 'bg-red-500'
+                isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
               }`}></span>
               <span className="text-xs">
                 {isConnected ? 'Real-time' : 'Connecting...'}
@@ -595,7 +656,7 @@ export default function DriverDashboard() {
       {/* Main Content - Mobile First Layout */}
       <div className="flex-1 px-4 py-4 space-y-4">
         {/* Driver Status Card */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+        <div className="bg-white rounded-2xl shadow-lg p-6 border border-green-100">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-900">Driver Status</h2>
             <div className={`px-4 py-2 rounded-full text-sm font-bold ${
@@ -628,8 +689,8 @@ export default function DriverDashboard() {
         </div>
 
         {/* Map Section - Mobile Optimized */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
-          <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600">
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-green-100">
+          <div className="p-4 bg-gradient-to-r from-green-600 to-emerald-600">
             <h2 className="text-lg font-bold text-white flex items-center">
               <span className="mr-2">🗺️</span>
               Live Location
@@ -643,9 +704,9 @@ export default function DriverDashboard() {
                 markers={getMapMarkers()}
               />
             ) : (
-              <div className="h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+              <div className="h-full flex items-center justify-center bg-gradient-to-br from-green-50 to-white">
                 <div className="text-center">
-                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-200 border-t-green-600 mx-auto mb-4"></div>
                   <p className="text-gray-700 font-medium">Getting your location...</p>
                   <p className="text-gray-500 text-sm mt-1">Please enable location services</p>
                 </div>
@@ -655,8 +716,8 @@ export default function DriverDashboard() {
         </div>
 
         {/* Ride Management Section */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20">
-          <div className="p-4 bg-gradient-to-r from-purple-600 to-pink-600">
+        <div className="bg-white rounded-2xl shadow-lg border border-green-100">
+          <div className="p-4 bg-gradient-to-r from-green-600 to-emerald-600">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white flex items-center">
                 <span className="mr-2">🚗</span>
@@ -733,8 +794,8 @@ export default function DriverDashboard() {
                 {/* Action Buttons - Mobile Optimized */}
                 <div className="space-y-3 pt-4">
                   <button
-                    onClick={() => {/* Navigate to pickup */}}
-                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-6 rounded-xl font-bold text-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg flex items-center justify-center space-x-2"
+                    onClick={() => handleNavigateToPickup()}
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 px-6 rounded-xl font-bold text-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-lg flex items-center justify-center space-x-2"
                   >
                     <span>🧭</span>
                     <span>Navigate to Pickup</span>
@@ -742,16 +803,16 @@ export default function DriverDashboard() {
                   
                   <div className="grid grid-cols-2 gap-3">
                     <button
-                      onClick={() => {/* Start ride */}}
-                      className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-lg flex items-center justify-center space-x-1"
+                      onClick={() => handleStartRide()}
+                      className="bg-white border-2 border-green-600 text-green-600 py-3 px-4 rounded-xl font-semibold hover:bg-green-50 transition-all duration-200 shadow-lg flex items-center justify-center space-x-1"
                     >
                       <span>▶️</span>
                       <span>Start Ride</span>
                     </button>
                     
                     <button
-                      onClick={() => {/* Complete ride */}}
-                      className="bg-gradient-to-r from-orange-600 to-red-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-orange-700 hover:to-red-700 transition-all duration-200 shadow-lg flex items-center justify-center space-x-1"
+                      onClick={() => handleCompleteRide()}
+                      className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-lg flex items-center justify-center space-x-1"
                     >
                       <span>✅</span>
                       <span>Complete</span>
