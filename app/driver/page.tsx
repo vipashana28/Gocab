@@ -5,7 +5,10 @@ import { useGoCabAuth } from '@/lib/auth/use-gocab-auth-google'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { usePusher } from '@/lib/hooks/use-pusher'
+import { useGPSTracking } from '@/lib/hooks/use-gps-tracking'
 import MapView from '@/components/Map/MapView'
+import PhoneCollectionModal from '@/components/PhoneCollectionModal'
+import RouteDisplayModal from '@/components/RouteDisplayModal'
 
 interface DriverLocation {
   latitude: number
@@ -39,6 +42,20 @@ export default function DriverDashboard() {
     onNotificationSound,
     updateDriverLocation 
   } = usePusher()
+  const {
+    position: gpsPosition,
+    error: gpsError,
+    isTracking: isGPSTracking,
+    accuracy: gpsAccuracy,
+    startTracking: startGPSTracking,
+    stopTracking: stopGPSTracking,
+    requestPermission: requestGPSPermission,
+    isSupported: isGPSSupported
+  } = useGPSTracking({
+    enableHighAccuracy: true,
+    updateInterval: 3000, // Update every 3 seconds for real-time tracking
+    timeout: 10000
+  })
   
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null)
   const [rideRequests, setRideRequests] = useState<RideRequest[]>([])
@@ -49,6 +66,9 @@ export default function DriverDashboard() {
   const [isProcessingRide, setIsProcessingRide] = useState(false)
   const [activeNotification, setActiveNotification] = useState<RideRequest | null>(null)
   const [notificationTimeLeft, setNotificationTimeLeft] = useState(0)
+  const [showPhoneModal, setShowPhoneModal] = useState(false)
+  const [isUpdatingPhone, setIsUpdatingPhone] = useState(false)
+  const [showRouteModal, setShowRouteModal] = useState(false)
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -61,6 +81,59 @@ export default function DriverDashboard() {
     
     return () => clearTimeout(timer)
   }, [isAuthenticated, isLoading, router])
+
+  // Check if phone number is required
+  useEffect(() => {
+    if (isAuthenticated && user && !user.phone) {
+      console.log('📞 Phone number required for driver features')
+      setShowPhoneModal(true)
+    }
+  }, [isAuthenticated, user])
+
+  // Initialize GPS tracking when authenticated
+  useEffect(() => {
+    if (isAuthenticated && user?.phone && isGPSSupported) {
+      console.log('📍 Initializing GPS tracking...')
+      requestGPSPermission().then((granted) => {
+        if (granted) {
+          startGPSTracking()
+        } else {
+          setLocationError('GPS permission required for driver features')
+        }
+      })
+    }
+
+    return () => {
+      if (isGPSTracking) {
+        stopGPSTracking()
+      }
+    }
+  }, [isAuthenticated, user?.phone, isGPSSupported])
+
+  // Update driver location when GPS position changes
+  useEffect(() => {
+    if (gpsPosition && isAuthenticated && user?.id) {
+      const newLocation: DriverLocation = {
+        latitude: gpsPosition.latitude,
+        longitude: gpsPosition.longitude,
+        lastUpdate: new Date(gpsPosition.timestamp)
+      }
+
+      setDriverLocation(newLocation)
+      setLocationError(null)
+
+      // Update location on server
+      updateDriverLocationOnServer(newLocation)
+    }
+  }, [gpsPosition, isAuthenticated, user?.id])
+
+  // Handle GPS errors
+  useEffect(() => {
+    if (gpsError) {
+      console.error('❌ GPS Error:', gpsError)
+      setLocationError(gpsError)
+    }
+  }, [gpsError])
 
   // Auto-start location sharing when authenticated
   useEffect(() => {
@@ -418,16 +491,25 @@ export default function DriverDashboard() {
 
   const handleNavigateToPickup = () => {
     if (acceptedRide && acceptedRide.pickupCoordinates) {
-      const { latitude, longitude } = acceptedRide.pickupCoordinates
-      // Open Google Maps with navigation to pickup location
-      const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`
-      window.open(mapsUrl, '_blank')
-      console.log('🧭 Opening navigation to pickup location')
+      console.log('🧭 Opening in-app navigation to pickup location')
+      setShowRouteModal(true)
+    } else {
+      alert('No pickup location available')
     }
   }
 
   const handleStartRide = async () => {
-    if (!acceptedRide) return
+    if (!acceptedRide) {
+      console.error('❌ No accepted ride found')
+      alert('No active ride to start')
+      return
+    }
+    
+    console.log('🚗 Starting ride with data:', {
+      rideId: acceptedRide.rideId,
+      driverId: user?.id,
+      acceptedRide: acceptedRide
+    })
     
     try {
       const response = await fetch(`/api/rides/${acceptedRide.rideId}/status`, {
@@ -439,15 +521,20 @@ export default function DriverDashboard() {
         })
       })
 
+      const responseData = await response.json()
+      console.log('📡 API Response:', responseData)
+
       if (response.ok) {
         setAcceptedRide((prev: any) => prev ? { ...prev, status: 'in_progress' } : null)
-        console.log('▶️ Ride started successfully')
+        console.log('✅ Ride started successfully')
+        alert('Ride started! En route to destination.')
       } else {
-        alert('Failed to start ride')
+        console.error('❌ API Error:', responseData)
+        alert(`Failed to start ride: ${responseData.error?.message || 'Unknown error'}`)
       }
     } catch (error) {
-      console.error('Failed to start ride:', error)
-      alert('Network error while starting ride')
+      console.error('❌ Network error starting ride:', error)
+      alert('Network error while starting ride. Please check your connection.')
     }
   }
 
@@ -474,6 +561,64 @@ export default function DriverDashboard() {
     } catch (error) {
       console.error('Failed to complete ride:', error)
       alert('Network error while completing ride')
+    }
+  }
+
+  const handlePhoneSubmit = async (phoneNumber: string) => {
+    if (!user?.id) return
+    
+    setIsUpdatingPhone(true)
+    
+    try {
+      const response = await fetch('/api/users/phone', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          phone: phoneNumber
+        })
+      })
+
+      const responseData = await response.json()
+
+      if (response.ok) {
+        console.log('✅ Phone number updated successfully')
+        setShowPhoneModal(false)
+        // Refresh user data to get updated phone number
+        window.location.reload()
+      } else {
+        console.error('❌ Failed to update phone:', responseData)
+        alert(`Failed to update phone number: ${responseData.error?.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('❌ Network error updating phone:', error)
+      alert('Network error while updating phone number. Please try again.')
+    } finally {
+      setIsUpdatingPhone(false)
+    }
+  }
+
+  const updateDriverLocationOnServer = async (location: DriverLocation) => {
+    if (!user?.id) return
+
+    try {
+      const response = await fetch('/api/drivers/location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driverId: user.id,
+          latitude: location.latitude,
+          longitude: location.longitude
+        })
+      })
+
+      if (response.ok) {
+        console.log('📍 Location updated on server')
+      } else {
+        console.error('❌ Failed to update location on server')
+      }
+    } catch (error) {
+      console.error('❌ Network error updating location:', error)
     }
   }
 
@@ -526,15 +671,15 @@ export default function DriverDashboard() {
           {/* Status Indicators - Mobile Optimized */}
           <div className="flex items-center justify-between mt-3 space-x-2">
             <div className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-medium ${
-              driverLocation ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-gray-100 text-gray-800 border border-gray-200'
+              isGPSTracking && driverLocation ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-gray-100 text-gray-800 border border-gray-200'
             }`}>
               <span className={`w-3 h-3 rounded-full ${
-                isUpdatingLocation ? 'bg-yellow-400 animate-pulse' : 
-                driverLocation ? 'bg-green-500' : 'bg-gray-400'
+                isGPSTracking && driverLocation ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
               }`}></span>
               <span className="text-xs">
-                {isUpdatingLocation ? 'Updating...' : 
-                 driverLocation ? 'Online' : 'Getting location...'}
+                {isGPSTracking && driverLocation ? 
+                  `GPS Active ${gpsAccuracy ? `(±${Math.round(gpsAccuracy)}m)` : ''}` : 
+                  gpsError || 'Getting GPS...'}
               </span>
             </div>
             
@@ -916,6 +1061,34 @@ export default function DriverDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Phone Collection Modal */}
+      <PhoneCollectionModal
+        isOpen={showPhoneModal}
+        onClose={() => {}} // Mandatory - cannot close without providing phone
+        onSubmit={handlePhoneSubmit}
+        isLoading={isUpdatingPhone}
+      />
+
+      {/* Route Display Modal */}
+      {acceptedRide && acceptedRide.pickupCoordinates && acceptedRide.destinationCoordinates && (
+        <RouteDisplayModal
+          isOpen={showRouteModal}
+          onClose={() => setShowRouteModal(false)}
+          pickup={{
+            address: acceptedRide.pickupAddress || 'Pickup Location',
+            coordinates: acceptedRide.pickupCoordinates
+          }}
+          destination={{
+            address: acceptedRide.destinationAddress || 'Destination',
+            coordinates: acceptedRide.destinationCoordinates
+          }}
+          currentLocation={driverLocation ? {
+            latitude: driverLocation.latitude,
+            longitude: driverLocation.longitude
+          } : undefined}
+        />
+      )}
     </div>
   )
 }
