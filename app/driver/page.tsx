@@ -182,7 +182,7 @@ export default function DriverDashboard() {
         if (!activeNotification) {
           console.log('🚨 Showing persistent notification for new ride')
           setActiveNotification(newRequest)
-          setNotificationTimeLeft(30) // 30 seconds to respond
+          setNotificationTimeLeft(120) // 2 minutes to respond
         }
       })
       
@@ -433,56 +433,63 @@ export default function DriverDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="flex justify-between items-center px-4 py-3">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8">
-              <img 
-                src="/icons/GOLOGO.svg" 
-                alt="GoCabs Logo" 
-                className="w-full h-full"
-              />
-            </div>
-            <h1 className="text-lg font-bold text-gray-900">GoCabs Driver</h1>
-          </div>
-          <div className="flex items-center space-x-3">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Mobile-First Header */}
+      <header className="bg-white/90 backdrop-blur-sm shadow-lg border-b sticky top-0 z-40">
+        <div className="px-4 py-3">
+          <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
-              <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
-                driverLocation ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-              }`}>
-                <span className={`w-2 h-2 rounded-full ${
-                  isUpdatingLocation ? 'bg-yellow-400 animate-pulse' : 
-                  driverLocation ? 'bg-green-400' : 'bg-gray-400'
-                }`}></span>
-                <span>
-                  {isUpdatingLocation ? 'Updating...' : 
-                   driverLocation ? 'Online' : 'Getting location...'}
-                </span>
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-lg">G</span>
               </div>
-              
-              <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
-                isConnected ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'
-              }`}>
-                <span className={`w-2 h-2 rounded-full ${
-                  isConnected ? 'bg-blue-400' : 'bg-red-400'
-                }`}></span>
-                <span>
-                  {isConnected ? 'Real-time' : connectionError || 'Connecting...'}
-                </span>
+              <div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  GoCabs Driver
+                </h1>
+                <p className="text-xs text-gray-500">Hi, {user?.firstName}!</p>
               </div>
             </div>
-            <span className="text-sm text-gray-600">Hi, {user?.firstName}!</span>
-            <button 
-              onClick={signOut}
-              className="text-sm text-red-600 hover:text-red-700"
-            >
-              Sign Out
-            </button>
+            
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={signOut}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          
+          {/* Status Indicators - Mobile Optimized */}
+          <div className="flex items-center justify-between mt-3 space-x-2">
+            <div className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-medium ${
+              driverLocation ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-gray-100 text-gray-800 border border-gray-200'
+            }`}>
+              <span className={`w-3 h-3 rounded-full ${
+                isUpdatingLocation ? 'bg-yellow-400 animate-pulse' : 
+                driverLocation ? 'bg-green-500' : 'bg-gray-400'
+              }`}></span>
+              <span className="text-xs">
+                {isUpdatingLocation ? 'Updating...' : 
+                 driverLocation ? 'Online' : 'Getting location...'}
+              </span>
+            </div>
+            
+            <div className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-medium ${
+              isConnected ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-red-100 text-red-800 border border-red-200'
+            }`}>
+              <span className={`w-3 h-3 rounded-full ${
+                isConnected ? 'bg-blue-500 animate-pulse' : 'bg-red-500'
+              }`}></span>
+              <span className="text-xs">
+                {isConnected ? 'Real-time' : 'Connecting...'}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Location Error */}
       {locationError && (
@@ -508,7 +515,7 @@ export default function DriverDashboard() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold">₹{activeNotification.estimatedFare}</div>
+                  <div className="text-lg font-bold">🌱 Eco Ride</div>
                   <div className="text-sm opacity-90">{activeNotification.distanceToPickup.toFixed(1)} km away</div>
                 </div>
               </div>
@@ -523,7 +530,7 @@ export default function DriverDashboard() {
               <div className="w-full bg-orange-200 rounded-full h-2 mt-2">
                 <div 
                   className="bg-orange-500 h-2 rounded-full transition-all duration-1000"
-                  style={{ width: `${(notificationTimeLeft / 30) * 100}%` }}
+                  style={{ width: `${(notificationTimeLeft / 120) * 100}%` }}
                 ></div>
               </div>
             </div>
@@ -585,94 +592,170 @@ export default function DriverDashboard() {
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col md:flex-row">
-        {/* Map View */}
-        <div className="flex-1 h-64 md:h-auto">
-          {driverLocation ? (
-            <MapView 
-              center={[driverLocation.latitude, driverLocation.longitude]} 
-              zoom={15}
-              markers={getMapMarkers()}
-            />
-          ) : (
-            <div className="h-full flex items-center justify-center bg-gray-100">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Getting your location...</p>
+      {/* Main Content - Mobile First Layout */}
+      <div className="flex-1 px-4 py-4 space-y-4">
+        {/* Driver Status Card */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900">Driver Status</h2>
+            <div className={`px-4 py-2 rounded-full text-sm font-bold ${
+              driverLocation 
+                ? 'bg-green-100 text-green-800 border-2 border-green-200' 
+                : 'bg-red-100 text-red-800 border-2 border-red-200'
+            }`}>
+              {driverLocation ? '🟢 Active' : '🔴 Inactive'}
+            </div>
+          </div>
+          
+          {driverLocation && (
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-green-800">📍 Location Active</p>
+                  <p className="text-xs text-green-600 mt-1">
+                    Last updated: {driverLocation.lastUpdate.toLocaleTimeString()}
+                  </p>
+                </div>
+                {isUpdatingLocation && (
+                  <div className="flex items-center text-green-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-green-200 border-t-green-600 mr-2"></div>
+                    <span className="text-xs font-medium">Updating...</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
 
-        {/* Ride Management Panel - Mobile: Bottom sheet, Desktop: Sidebar */}
-        <div className="w-full md:w-80 bg-white border-t md:border-t-0 md:border-l border-gray-200 overflow-y-auto max-h-96 md:max-h-none">
+        {/* Map Section - Mobile Optimized */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
+          <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600">
+            <h2 className="text-lg font-bold text-white flex items-center">
+              <span className="mr-2">🗺️</span>
+              Live Location
+            </h2>
+          </div>
+          <div className="h-64 sm:h-80">
+            {driverLocation ? (
+              <MapView 
+                center={[driverLocation.latitude, driverLocation.longitude]} 
+                zoom={15}
+                markers={getMapMarkers()}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-700 font-medium">Getting your location...</p>
+                  <p className="text-gray-500 text-sm mt-1">Please enable location services</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Ride Management Section */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20">
+          <div className="p-4 bg-gradient-to-r from-purple-600 to-pink-600">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white flex items-center">
+                <span className="mr-2">🚗</span>
+                {acceptedRide ? 'Current Ride' : 'Available Rides'}
+              </h2>
+              {!acceptedRide && rideRequests.length > 0 && (
+                <span className="bg-white/20 text-white px-3 py-1 rounded-full text-sm font-bold">
+                  {rideRequests.length} new
+                </span>
+              )}
+            </div>
+          </div>
+          
           <div className="p-4">
             {acceptedRide ? (
-              /* Accepted Ride Section */
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Active Ride</h3>
-                  <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
-                    In Progress
-                  </span>
+              /* Accepted Ride Section - Mobile Optimized */
+              <div className="space-y-4">
+                {/* OTP Display - Prominent */}
+                <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-6 text-white text-center shadow-lg">
+                  <div className="text-sm font-medium opacity-90 mb-2">Ride OTP</div>
+                  <div className="text-4xl font-bold tracking-widest mb-2">{acceptedRide.otp}</div>
+                  <div className="text-sm opacity-90">Share with passenger for verification</div>
                 </div>
 
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="text-center mb-4">
-                    <div className="text-sm text-green-700 font-medium">Ride OTP</div>
-                    <div className="text-2xl font-bold text-green-900 tracking-widest mb-2">{acceptedRide.otp}</div>
-                    <div className="text-xs text-green-600">Share with passenger for verification</div>
-                  </div>
-
-                  <div className="space-y-3">
+                {/* Passenger Info */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-2xl">👤</span>
+                    </div>
                     <div>
-                      <div className="text-sm font-medium text-gray-900 mb-1">Passenger</div>
-                      <div className="text-sm text-gray-700">{acceptedRide.passengerName}</div>
+                      <p className="font-semibold text-gray-900">{acceptedRide.passengerName}</p>
+                      <p className="text-sm text-gray-600">Passenger</p>
                     </div>
+                  </div>
+                </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-start space-x-2">
-                        <span className="text-green-600 mt-0.5">📍</span>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">Pickup</div>
-                          <div className="text-sm text-gray-700">{acceptedRide.pickupAddress}</div>
-                        </div>
+                {/* Route Information */}
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-3 p-3 bg-green-50 rounded-xl border border-green-200">
+                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-white text-xs font-bold">P</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">PICKUP LOCATION</p>
+                      <p className="text-sm font-medium text-gray-900 mt-1">{acceptedRide.pickupAddress}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-3 p-3 bg-red-50 rounded-xl border border-red-200">
+                    <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-white text-xs font-bold">D</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">DESTINATION</p>
+                      <p className="text-sm font-medium text-gray-900 mt-1">{acceptedRide.destinationAddress}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Estimated Arrival */}
+                {acceptedRide.estimatedArrival && (
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-purple-600">⏱️</span>
+                      <div>
+                        <p className="text-sm font-semibold text-purple-900">Estimated Arrival</p>
+                        <p className="text-lg font-bold text-purple-700">{acceptedRide.estimatedArrival}</p>
                       </div>
-                      <div className="flex items-start space-x-2">
-                        <span className="text-red-500 mt-0.5">📍</span>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">Destination</div>
-                          <div className="text-sm text-gray-700">{acceptedRide.destinationAddress}</div>
-                        </div>
-                      </div>
                     </div>
+                  </div>
+                )}
 
-                    <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                      <div className="text-sm font-medium text-blue-900">Estimated Arrival</div>
-                      <div className="text-lg font-bold text-blue-700">{acceptedRide.estimatedArrival}</div>
-                    </div>
-
-                    <div className="space-y-2 pt-3 border-t border-green-200">
-                      <button
-                        onClick={() => {/* Navigate to pickup */}}
-                        className="w-full bg-blue-600 text-white py-2 px-3 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
-                      >
-                        Navigate to Pickup
-                      </button>
-                      <button
-                        onClick={() => {/* Start ride */}}
-                        className="w-full bg-green-600 text-white py-2 px-3 rounded-lg font-medium hover:bg-green-700 transition-colors text-sm"
-                      >
-                        Start Ride
-                      </button>
-                      <button
-                        onClick={() => {/* Complete ride */}}
-                        className="w-full bg-orange-600 text-white py-2 px-3 rounded-lg font-medium hover:bg-orange-700 transition-colors text-sm"
-                      >
-                        Complete Ride
-                      </button>
-                    </div>
+                {/* Action Buttons - Mobile Optimized */}
+                <div className="space-y-3 pt-4">
+                  <button
+                    onClick={() => {/* Navigate to pickup */}}
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-6 rounded-xl font-bold text-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg flex items-center justify-center space-x-2"
+                  >
+                    <span>🧭</span>
+                    <span>Navigate to Pickup</span>
+                  </button>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => {/* Start ride */}}
+                      className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-lg flex items-center justify-center space-x-1"
+                    >
+                      <span>▶️</span>
+                      <span>Start Ride</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {/* Complete ride */}}
+                      className="bg-gradient-to-r from-orange-600 to-red-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-orange-700 hover:to-red-700 transition-all duration-200 shadow-lg flex items-center justify-center space-x-1"
+                    >
+                      <span>✅</span>
+                      <span>Complete</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -715,7 +798,7 @@ export default function DriverDashboard() {
                             <p className="text-sm text-gray-600">from {request.passengerName}</p>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold text-green-700">${request.estimatedFare.toFixed(2)}</div>
+                            <div className="font-bold text-green-700">🌱 Eco Ride</div>
                             <div className="text-xs text-green-600">{request.distanceToPickup.toFixed(1)} km away</div>
                           </div>
                         </div>

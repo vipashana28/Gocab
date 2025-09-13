@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
-import { Ride, Driver } from '@/lib/models'
+import { Ride, User } from '@/lib/models'
 import mongoose from 'mongoose'
 import { notifyRiderStatusUpdateViaPusher } from '@/lib/services/pusher'
 
@@ -84,9 +84,9 @@ export async function POST(
       }, { status: 409 })
     }
 
-    // Find and validate the driver
-    const driver = await Driver.findById(driverId)
-    if (!driver) {
+    // Find and validate the driver (using User model with driverProfile)
+    const driver = await User.findById(driverId)
+    if (!driver || !driver.driverProfile) {
       return NextResponse.json({
         success: false,
         error: {
@@ -97,7 +97,7 @@ export async function POST(
     }
 
     // Check if driver is available
-    if (!driver.isAvailable || !driver.isOnline || driver.status !== 'active') {
+    if (!driver.driverProfile.isOnline || !driver.isActive) {
       return NextResponse.json({
         success: false,
         error: {
@@ -114,9 +114,11 @@ export async function POST(
       matchedAt: new Date(),
       driverContact: {
         name: driver.firstName + ' ' + (driver.lastName || ''),
-        phone: driver.phone,
-        vehicleInfo: `${driver.vehicle.make} ${driver.vehicle.model} (${driver.vehicle.color})`,
-        licensePlate: driver.vehicle.licensePlate,
+        phone: driver.phone || driver.driverProfile.phone,
+        vehicleInfo: driver.driverProfile.vehicle ? 
+          `${driver.driverProfile.vehicle.make} ${driver.driverProfile.vehicle.model} (${driver.driverProfile.vehicle.color})` : 
+          'Vehicle info not available',
+        licensePlate: driver.driverProfile.vehicle?.licensePlate || 'N/A',
         photo: driver.profilePhoto
       }
     }
@@ -138,14 +140,14 @@ export async function POST(
       { new: true }
     )
 
-    // Update driver availability
-    await Driver.findByIdAndUpdate(driverId, {
-      isAvailable: false,
-      currentRideId: ride._id,
-      lastLocationUpdate: new Date(),
+    // Update driver availability (using User model with driverProfile)
+    await User.findByIdAndUpdate(driverId, {
+      'driverProfile.isAvailable': false,
+      'driverProfile.currentRideId': ride._id,
+      'driverProfile.lastLocationUpdate': new Date(),
       ...(driverLocation && {
-        'currentLocation.coordinates': [driverLocation.longitude, driverLocation.latitude],
-        'currentLocation.lastUpdated': new Date()
+        'driverProfile.currentLocation.coordinates': [driverLocation.longitude, driverLocation.latitude],
+        'driverProfile.currentLocation.lastUpdated': new Date()
       })
     })
 
