@@ -827,27 +827,21 @@ export default function DriverDashboard() {
                 onClick={handleNavigateToPickup}
                 className="inline-flex items-center justify-center gap-2 bg-neutral-900 text-white py-3 rounded-lg font-medium hover:bg-black transition"
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2l4 9-9 4 2.5-3.5L2 12l10-10z"/>
-                </svg>
+              
                 Navigate
               </button>
               <button
                 onClick={handleStartRide}
                 className="inline-flex items-center justify-center gap-2 bg-white border border-neutral-300 text-neutral-900 py-3 rounded-lg font-medium hover:bg-neutral-50 transition"
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
+                
                 Start
               </button>
               <button
                 onClick={handleCompleteRide}
                 className="inline-flex items-center justify-center gap-2 bg-neutral-900 text-white py-3 rounded-lg font-medium hover:bg-black transition"
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M9 12l2 2 4-4 2 2-6 6-4-4z"/>
-                </svg>
+                
                 Complete
               </button>
             </div>

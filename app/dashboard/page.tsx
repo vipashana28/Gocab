@@ -906,7 +906,7 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
         <div className="bg-white rounded-3xl shadow-lg p-8 max-w-md w-full mx-auto border border-neutral-200">
           {/* Header */}
           <div className="text-center mb-6">
-            <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-24 h-24 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4 border border-neutral-200">
               <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -942,44 +942,44 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
           </div>
 
           {/* Environmental Impact */}
-          <div className="bg-green-100 rounded-2xl p-6 mb-6">
+          <div className="bg-neutral-50 rounded-2xl p-6 mb-6 border border-neutral-200">
             <div className="text-center mb-4">
               <div className="flex items-center justify-center space-x-2">
-                <svg className="w-6 h-6 text-green-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <h3 className="font-semibold text-green-800 text-xl">Environmental Impact</h3>
+                <h3 className="font-semibold text-neutral-900 text-xl">Environmental Impact</h3>
               </div>
-              <p className="text-green-700 text-base">You made a positive difference!</p>
+              <p className="text-neutral-600 text-base">You made a positive difference!</p>
             </div>
             
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20a7 7 0 110-14c.62 0 1.21.08 1.77.24A6 6 0 1120 13h-3a3 3 0 10-3 3H7z" />
                   </svg>
                   <span className="text-neutral-700 text-base">CO₂ emissions saved:</span>
                 </div>
-                <span className="font-bold text-green-800 text-lg">{completedRideData.tripSummary.carbonSaved}kg</span>
+                <span className="font-bold text-neutral-900 text-lg">{completedRideData.tripSummary.carbonSaved}kg</span>
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                   </svg>
                   <span className="text-neutral-700 text-base">Trees planted equivalent:</span>
                 </div>
-                <span className="font-bold text-green-800 text-lg">{completedRideData.tripSummary.treeEquivalent} trees</span>
+                <span className="font-bold text-neutral-900 text-lg">{completedRideData.tripSummary.treeEquivalent} trees</span>
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                   </svg>
                   <span className="text-neutral-700 text-base">Fuel saved:</span>
                 </div>
-                <span className="font-bold text-green-800 text-lg">{completedRideData.tripSummary.fuelSaved}L</span>
+                <span className="font-bold text-neutral-900 text-lg">{completedRideData.tripSummary.fuelSaved}L</span>
               </div>
             </div>
           </div>
@@ -1043,9 +1043,9 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
 
       {/* Top Header */}
       <div className="absolute top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur border-b border-neutral-200">
-        <div className="flex justify-between items-center px-4 py-3">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm ring-1 ring-neutral-200">
+        <div className="flex justify-between items-center px-2 sm:px-4 py-2 sm:py-3">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-white rounded-lg flex items-center justify-center shadow-sm ring-1 ring-neutral-200">
               <img 
                 src="/icons/GOLOGO.svg" 
                 alt="GoCabs Logo" 
@@ -1053,23 +1053,25 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
               />
             </div>
             <div className="leading-tight">
-              <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">GoCabs</h1>
-              <p className="text-sm text-neutral-500">Eco-friendly rides</p>
+              <h1 className="text-lg sm:text-xl md:text-2xl font-semibold tracking-tight text-neutral-900">GoCabs</h1>
+              <p className="text-xs sm:text-sm text-neutral-500">Eco-friendly rides</p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 sm:space-x-2">
             <button 
               onClick={() => window.location.href = '/events'}
-              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition"
+              className="inline-flex items-center gap-1 sm:gap-2 rounded-full border border-neutral-200 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition"
             >
-              Events
+              <span className="hidden sm:inline">Events</span>
+              <span className="sm:hidden">📅</span>
             </button>
-            <span className="text-base text-neutral-600">Hi, {user?.firstName}!</span>
+            <span className="text-sm sm:text-base text-neutral-600 hidden md:inline">Hi, {user?.firstName}!</span>
             <button 
               onClick={handleSignOut}
-              className="inline-flex items-center rounded-full bg-neutral-900 text-white px-5 py-2.5 text-base font-medium hover:bg-black transition shadow-sm"
+              className="inline-flex items-center rounded-full bg-neutral-900 text-white px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 text-sm sm:text-base font-medium hover:bg-black transition shadow-sm"
             >
-              Sign Out
+              <span className="hidden sm:inline">Sign Out</span>
+              <span className="sm:hidden">↗</span>
             </button>
           </div>
         </div>
@@ -1088,33 +1090,22 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
       {activeRide ? (
         <div className="absolute bottom-0 left-0 right-0 z-50">
           
-          {/* Pickup Code & OTP Banner */}
-          <div className="bg-green-500 text-white text-center py-4 px-4">
-            <div className="grid grid-cols-1 gap-3">
-              <div>
-                <p className="text-sm font-medium">Your Pickup Code</p>
-                <p className="text-3xl font-bold tracking-widest">{activeRide.pickupCode}</p>
-              </div>
-              {activeRide.otp && activeRide.status !== 'requested' && (
-                <div className="border-t border-green-400 pt-3">
-                  <p className="text-sm font-medium">Ride OTP</p>
-                  <p className="text-2xl font-bold tracking-widest">{activeRide.otp}</p>
-                </div>
-              )}
+          {/* Pickup Code Banner */}
+          <div className="bg-neutral-800 text-white text-center py-4 px-4">
+            <div>
+              <p className="text-sm font-medium">Your Pickup Code</p>
+              <p className="text-2xl sm:text-3xl font-bold tracking-widest">{activeRide.pickupCode}</p>
             </div>
             <p className="text-sm opacity-90 mt-2">
-              {activeRide.otp && activeRide.status !== 'requested' ? 
-                'Share both codes with your driver for verification' : 
-                'Share this code with your driver'
-              }
+              Share this code with your driver
             </p>
           </div>
 
           {/* Driver Info Card */}
-          <div className="bg-white rounded-t-3xl shadow-2xl p-6 max-h-80 overflow-y-auto">
+          <div className="bg-white rounded-t-3xl shadow-lg p-4 sm:p-6 max-h-80 overflow-y-auto border border-neutral-200">
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-neutral-200 rounded-full overflow-hidden">
                   {activeRide.driverContact?.photo ? (
                     <img 
                       src={activeRide.driverContact.photo} 
@@ -1122,40 +1113,34 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full bg-gray-300 flex items-center justify-center">
-                      <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-full h-full bg-neutral-300 flex items-center justify-center">
+                      <svg className="w-5 h-5 sm:w-6 sm:h-6 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                     </div>
                   )}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg">{activeRide.driverContact?.name || 'Driver'}</h3>
-                  <p className="text-sm text-gray-600">{activeRide.driverContact?.vehicleInfo}</p>
-                  <p className="text-sm font-medium text-gray-800">{activeRide.driverContact?.licensePlate}</p>
+                  <h3 className="font-semibold text-base sm:text-lg text-neutral-900">{activeRide.driverContact?.name || 'Driver'}</h3>
+                  <p className="text-sm text-neutral-600">{activeRide.driverContact?.vehicleInfo}</p>
+                  <p className="text-sm font-medium text-neutral-800">{activeRide.driverContact?.licensePlate}</p>
                 </div>
               </div>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                activeRide.status === 'requested' ? 'bg-yellow-100 text-yellow-800' :
-                activeRide.status === 'matched' ? 'bg-blue-100 text-blue-800' :
-                activeRide.status === 'driver_en_route' ? 'bg-purple-100 text-purple-800' :
-                activeRide.status === 'arrived' ? 'bg-green-100 text-green-800' :
-                'bg-orange-100 text-orange-800'
-              }`}>
+              <span className="px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-neutral-100 text-neutral-800 border border-neutral-200">
                 {activeRide.statusDisplay}
               </span>
             </div>
 
             {/* Estimated Arrival */}
             {activeRide.estimatedArrival && (
-              <div className="bg-blue-50 rounded-lg p-3 mb-4">
-                <p className="text-sm text-blue-700">
+              <div className="bg-neutral-50 rounded-lg p-3 mb-4 border border-neutral-200">
+                <p className="text-sm text-neutral-700">
                   <span className="font-medium">
                     {activeRide.status === 'arrived' ? 'Status:' : 'Arriving in:'}
                   </span> {activeRide.estimatedArrival}
                 </p>
                 {activeRide.driverLocation && (
-                  <div className="flex items-center space-x-1 text-xs text-blue-600 mt-1">
+                  <div className="flex items-center space-x-1 text-xs text-neutral-600 mt-1">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1169,17 +1154,17 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
             {/* Trip Details */}
             <div className="space-y-3 mb-4">
               <div className="flex items-start space-x-3">
-                <div className="w-3 h-3 bg-green-500 rounded-full mt-1"></div>
+                <div className="w-3 h-3 bg-neutral-400 rounded-full mt-1"></div>
                 <div>
-                  <p className="text-sm text-gray-600">Pickup</p>
-                  <p className="font-medium">{activeRide.pickup.address}</p>
+                  <p className="text-sm text-neutral-600">Pickup</p>
+                  <p className="font-medium text-neutral-900">{activeRide.pickup.address}</p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
-                <div className="w-3 h-3 bg-red-500 rounded-full mt-1"></div>
+                <div className="w-3 h-3 bg-neutral-600 rounded-full mt-1"></div>
                 <div>
-                  <p className="text-sm text-gray-600">Destination</p>
-                  <p className="font-medium">{activeRide.destination.address}</p>
+                  <p className="text-sm text-neutral-600">Destination</p>
+                  <p className="font-medium text-neutral-900">{activeRide.destination.address}</p>
                 </div>
               </div>
             </div>
@@ -1190,7 +1175,7 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
               {activeRide.status === 'arrived' && (
                 <button
                   onClick={handleStartTrip}
-                  className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-green-700 transition-colors"
+                  className="w-full bg-neutral-900 text-white py-3 sm:py-4 px-4 sm:px-6 rounded-full font-medium text-base sm:text-lg hover:bg-black transition-colors shadow-sm"
                 >
                   Start Trip
                 </button>
@@ -1200,7 +1185,7 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
               {activeRide.status === 'in_progress' && (
                 <button
                   onClick={handleEndTrip}
-                  className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-green-700 transition-colors"
+                  className="w-full bg-neutral-900 text-white py-3 sm:py-4 px-4 sm:px-6 rounded-full font-medium text-base sm:text-lg hover:bg-black transition-colors shadow-sm"
                 >
                   End Trip
                 </button>
@@ -1208,16 +1193,16 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
               
               {/* Standard Action Buttons - Show for other statuses */}
               {activeRide.status !== 'in_progress' && (
-            <div className="flex space-x-3">
+            <div className="flex space-x-2 sm:space-x-3">
               <button
                 onClick={callDriver}
-                className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 flex items-center justify-center"
+                className="flex-1 bg-neutral-900 text-white py-2.5 sm:py-3 px-3 sm:px-4 rounded-full font-medium text-sm sm:text-base hover:bg-black flex items-center justify-center transition-colors shadow-sm"
               >
                 <span>Call Driver</span>
               </button>
               <button
                 onClick={handleEndTrip}
-                className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700"
+                className="flex-1 bg-neutral-600 text-white py-2.5 sm:py-3 px-3 sm:px-4 rounded-full font-medium text-sm sm:text-base hover:bg-neutral-700 transition-colors shadow-sm"
               >
                 End Ride
               </button>
@@ -1231,7 +1216,7 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
                 <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20a7 7 0 110-14c.62 0 1.21.08 1.77.24A6 6 0 1720 13h-3a3 3 0 10-3 3H7z" />
                 </svg>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-neutral-600">
                   You'll save <span className="font-medium text-green-600">{activeRide.carbonFootprint.estimatedSaved}kg CO₂</span> with this ride
                 </p>
               </div>
@@ -1447,12 +1432,12 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
 
       {/* Searching for Driver Overlay */}
       {isSearchingForDriver && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center z-50 transition-opacity duration-300">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mb-4"></div>
-          <h2 className="text-white text-2xl font-semibold mb-2">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center z-50 transition-opacity duration-300 px-4">
+          <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-b-2 border-white mb-4"></div>
+          <h2 className="text-white text-xl sm:text-2xl font-semibold mb-2 text-center">
             Searching for Drivers
           </h2>
-          <p className="text-neutral-300 text-lg">
+          <p className="text-neutral-300 text-base sm:text-lg text-center">
             Hold tight! We're finding the best ride for you.
           </p>
         </div>
