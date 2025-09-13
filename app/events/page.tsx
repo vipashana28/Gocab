@@ -233,37 +233,37 @@ export default function EventsPage() {
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
       {/* Top nav */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-neutral-200">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm ring-1 ring-neutral-200">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-white rounded-lg flex items-center justify-center shadow-sm ring-1 ring-neutral-200">
                 <img src="/icons/GOLOGO.svg" alt="GoCabs Logo" className="w-full h-full" />
               </div>
               <div className="leading-tight">
-                <h1 className="text-2xl font-semibold tracking-tight">GoCabs Events</h1>
-                <p className="text-sm text-neutral-500">TOKEN2049 • Singapore</p>
+                <h1 className="text-lg sm:text-xl md:text-2xl font-semibold tracking-tight">GoCabs Events</h1>
+                <p className="text-xs sm:text-sm text-neutral-500">TOKEN2049 • Singapore</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               <a
                 href="https://x.com/gocabs_xyz"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition"
+                className="inline-flex items-center gap-1 sm:gap-2 rounded-full border border-neutral-200 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition"
                 aria-label="Follow GoCabs on X"
               >
                 {/* X icon */}
-                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true">
+                <svg viewBox="0 0 24 24" className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" aria-hidden="true">
                   <path d="M18.244 2H21l-6.56 7.49L22.5 22h-6.93l-4.52-5.95L5.9 22H3.14l7.02-8.02L1.5 2h7.03l4.07 5.47L18.24 2Zm-1.216 18h1.89L8.05 4h-1.9l10.878 16Z"/>
                 </svg>
-                Follow
+                <span className="hidden sm:inline">Follow</span>
               </a>
 
               {isAuthenticated && (
                 <button
                   onClick={() => router.push('/dashboard')}
-                  className="inline-flex items-center rounded-full bg-neutral-900 text-white px-5 py-2.5 text-base font-medium hover:bg-black transition shadow-sm"
+                  className="inline-flex items-center rounded-full bg-neutral-900 text-white px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm md:text-base font-medium hover:bg-black transition shadow-sm"
                 >
                   Dashboard
                 </button>
@@ -275,18 +275,18 @@ export default function EventsPage() {
 
       {/* Hero */}
       <section className="border-b border-neutral-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 py-12">
+        <div className="max-w-7xl mx-auto px-4 py-8 sm:py-12">
           <div className="text-center space-y-4">
-            <h2 className="text-5xl md:text-6xl font-extrabold tracking-tight">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight">
               TOKEN 2049
             </h2>
-            <p className="text-lg md:text-xl text-neutral-600">
+            <p className="text-base sm:text-lg md:text-xl text-neutral-600 max-w-3xl mx-auto">
               Your gateway to premier events during TOKEN 2049. Book eco-friendly rides with one tap.
             </p>
 
             {/* Moving banner (icons only) */}
             <div className="relative overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50">
-              <div className="flex whitespace-nowrap animate-[marquee_18s_linear_infinite]">
+              <div className="flex whitespace-nowrap animate-[marquee_8s_linear_infinite]">
                 {[
                   { text: 'Eco-friendly rides', icon: (
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M5 11h3l3-7h4a4 4 0 014 4v7h-2a3 3 0 11-6 0H9a3 3 0 11-6 0H1v-2a2 2 0 012-2h2Z"/></svg>
@@ -330,70 +330,70 @@ export default function EventsPage() {
 
      {/* Partners (animated) */}
 <section className="bg-neutral-50 border-b border-neutral-200 overflow-hidden">
-  <div className="max-w-7xl mx-auto px-4 py-10">
+  <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8 md:py-10">
     {/* Heading */}
-    <div className="text-center mb-8 fade-up">
-      <h3 className="text-lg font-semibold text-neutral-900">Event Partners</h3>
-      <p className="text-base text-neutral-600">Powered by Singapore's tech community</p>
+    <div className="text-center mb-6 sm:mb-8 fade-up">
+      <h3 className="text-base sm:text-lg font-semibold text-neutral-900">Event Partners</h3>
+      <p className="text-sm sm:text-base text-neutral-600">Powered by Singapore's tech community</p>
     </div>
 
     {/* Premium sponsor */}
-    <div className="flex flex-col items-center mb-8 fade-up" style={{ animationDelay: '120ms' }}>
-      <span className="mb-3 inline-flex items-center rounded-full bg-neutral-900 text-white px-4 py-1.5 text-sm font-medium shadow-sm">
+    <div className="flex flex-col items-center mb-6 sm:mb-8 fade-up" style={{ animationDelay: '120ms' }}>
+      <span className="mb-3 inline-flex items-center rounded-full bg-neutral-900 text-white px-3 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm font-medium shadow-sm">
         Premium Sponsor
       </span>
       <a
         href="https://x.com/DeCharge__"
         target="_blank"
         rel="noopener noreferrer"
-        className="relative flex flex-col items-center gap-3 bg-white border-2 border-neutral-200 hover:border-neutral-400 rounded-xl p-4 transition hover:shadow-lg floaty ring-hover"
+        className="relative flex flex-col items-center gap-2 sm:gap-3 bg-white border-2 border-neutral-200 hover:border-neutral-400 rounded-xl p-3 sm:p-4 transition hover:shadow-lg floaty ring-hover"
       >
-        <div className="w-20 h-20 rounded-full overflow-hidden bg-neutral-100 flex items-center justify-center border border-neutral-200 shadow-inner">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-neutral-100 flex items-center justify-center border border-neutral-200 shadow-inner">
           <img src="/icons/Decharge.jpg" alt="Decharge Logo" className="w-full h-full object-cover" />
         </div>
-        <span className="text-md font-semibold text-neutral-900">Decharge</span>
+        <span className="text-sm sm:text-base font-semibold text-neutral-900">Decharge</span>
       </a>
     </div>
 
     {/* Other partners */}
-    <div className="flex flex-wrap justify-center items-center gap-3">
+    <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-3">
       <a
         href="https://x.com/SuperteamSG"
         target="_blank"
         rel="noopener noreferrer"
-        className="relative flex items-center gap-2 bg-white border border-neutral-200 hover:border-neutral-400 rounded-lg p-3 transition hover:shadow-md hover:-translate-y-0.5 ring-hover fade-up"
+        className="relative flex items-center gap-2 bg-white border border-neutral-200 hover:border-neutral-400 rounded-lg p-2 sm:p-3 transition hover:shadow-md hover:-translate-y-0.5 ring-hover fade-up"
         style={{ animationDelay: '220ms' }}
       >
-        <div className="w-8 h-8 rounded-full overflow-hidden bg-neutral-100 flex items-center justify-center border border-neutral-200">
+        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-neutral-100 flex items-center justify-center border border-neutral-200">
           <img src="/icons/ST_singapore.jpg" alt="Superteam Singapore Logo" className="w-full h-full object-cover" />
         </div>
-        <span className="text-sm font-medium text-neutral-800">Superteam</span>
+        <span className="text-xs sm:text-sm font-medium text-neutral-800">Superteam</span>
       </a>
 
       <a
         href="https://x.com/SEADePIN"
         target="_blank"
         rel="noopener noreferrer"
-        className="relative flex items-center gap-2 bg-white border border-neutral-200 hover:border-neutral-400 rounded-lg p-3 transition hover:shadow-md hover:-translate-y-0.5 ring-hover fade-up"
+        className="relative flex items-center gap-2 bg-white border border-neutral-200 hover:border-neutral-400 rounded-lg p-2 sm:p-3 transition hover:shadow-md hover:-translate-y-0.5 ring-hover fade-up"
         style={{ animationDelay: '320ms' }}
       >
-        <div className="w-8 h-8 rounded-full overflow-hidden bg-neutral-100 flex items-center justify-center border border-neutral-200">
+        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-neutral-100 flex items-center justify-center border border-neutral-200">
           <img src="/icons/SeaDEpin.jpg" alt="SEA DePIN Logo" className="w-full h-full object-cover" />
         </div>
-        <span className="text-sm font-medium text-neutral-800">SEA DePIN</span>
+        <span className="text-xs sm:text-sm font-medium text-neutral-800">SEA DePIN</span>
       </a>
 
       <a
         href="https://x.com/BackersStage"
         target="_blank"
         rel="noopener noreferrer"
-        className="relative flex items-center gap-2 bg-white border border-neutral-200 hover:border-neutral-400 rounded-lg p-3 transition hover:shadow-md hover:-translate-y-0.5 ring-hover fade-up"
+        className="relative flex items-center gap-2 bg-white border border-neutral-200 hover:border-neutral-400 rounded-lg p-2 sm:p-3 transition hover:shadow-md hover:-translate-y-0.5 ring-hover fade-up"
         style={{ animationDelay: '420ms' }}
       >
-        <div className="w-8 h-8 rounded-full overflow-hidden bg-neutral-100 flex items-center justify-center border border-neutral-200">
+        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-neutral-100 flex items-center justify-center border border-neutral-200">
           <img src="/icons/Backersstage.jpg" alt="BackerStage Logo" className="w-full h-full object-cover" />
         </div>
-        <span className="text-sm font-medium text-neutral-800">BackerStage</span>
+        <span className="text-xs sm:text-sm font-medium text-neutral-800">BackerStage</span>
       </a>
     </div>
   </div>
@@ -465,7 +465,7 @@ export default function EventsPage() {
               <div
                 className="
                   flex gap-6 whitespace-nowrap py-6 px-6 will-change-transform
-                  animate-[cardscroll_28s_linear_infinite]
+                  animate-[cardscroll_3s_linear_infinite]
                   group-hover:[animation-play-state:paused]
                   focus-within:[animation-play-state:paused]
                 "

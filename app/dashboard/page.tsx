@@ -1060,18 +1060,16 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
           <div className="flex items-center space-x-1 sm:space-x-2">
             <button 
               onClick={() => window.location.href = '/events'}
-              className="inline-flex items-center gap-1 sm:gap-2 rounded-full border border-neutral-200 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition"
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition"
             >
-              <span className="hidden sm:inline">Events</span>
-              <span className="sm:hidden">📅</span>
+              Events
             </button>
             <span className="text-sm sm:text-base text-neutral-600 hidden md:inline">Hi, {user?.firstName}!</span>
             <button 
               onClick={handleSignOut}
-              className="inline-flex items-center rounded-full bg-neutral-900 text-white px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 text-sm sm:text-base font-medium hover:bg-black transition shadow-sm"
+              className="inline-flex items-center rounded-full bg-neutral-900 text-white px-4 sm:px-5 py-1.5 sm:py-2.5 text-xs sm:text-base font-medium hover:bg-black transition shadow-sm"
             >
-              <span className="hidden sm:inline">Sign Out</span>
-              <span className="sm:hidden">↗</span>
+              Sign Out
             </button>
           </div>
         </div>
