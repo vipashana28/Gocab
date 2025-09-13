@@ -1088,14 +1088,14 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
       {activeRide ? (
         <div className="absolute bottom-0 left-0 right-0 z-50">
           
-          {/* Pickup Code Banner */}
+          {/* Ride OTP Banner */}
           <div className="bg-neutral-800 text-white text-center py-4 px-4">
             <div>
-              <p className="text-sm font-medium">Your Pickup Code</p>
-              <p className="text-2xl sm:text-3xl font-bold tracking-widest">{activeRide.pickupCode}</p>
+              <p className="text-sm font-medium">Ride OTP</p>
+              <p className="text-2xl sm:text-3xl font-bold tracking-widest">{activeRide.otp}</p>
             </div>
             <p className="text-sm opacity-90 mt-2">
-              Share this code with your driver
+              Share this 4-digit OTP with your driver for verification
             </p>
           </div>
 
