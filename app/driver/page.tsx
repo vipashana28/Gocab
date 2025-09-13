@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useGoCabAuth } from '@/lib/auth/use-gocab-auth-google'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { useSocket } from '@/lib/hooks/use-socket'
 import MapView from '@/components/Map/MapView'
 
 interface DriverLocation {
@@ -23,12 +24,21 @@ interface RideRequest {
   distanceToPickup: number
   passengerName: string
   requestedAt: Date
+  estimatedTimeToPickup?: string
 }
 
 export default function DriverDashboard() {
   const { isAuthenticated, user, isLoading, signOut } = useGoCabAuth()
   const { status } = useSession()
   const router = useRouter()
+  const { 
+    isConnected, 
+    connectionError, 
+    joinAsDriver, 
+    onNewRide, 
+    onNotificationSound,
+    updateDriverLocation 
+  } = useSocket()
   
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null)
   const [rideRequests, setRideRequests] = useState<RideRequest[]>([])
@@ -132,11 +142,63 @@ export default function DriverDashboard() {
     }
   }, [isAuthenticated, user?.id, acceptedRide])
 
-  // Fetch available ride requests and play notification sound for new requests
+  // WebSocket connection and real-time notifications
+  useEffect(() => {
+    if (isAuthenticated && user?.id && isConnected) {
+      console.log('🚗 Driver joining WebSocket as:', user.id)
+      joinAsDriver(user.id)
+      
+      // Listen for new ride notifications
+      const unsubscribeNewRides = onNewRide((rideData: any) => {
+        console.log('🎯 New ride notification received:', rideData)
+        
+        const newRequest: RideRequest = {
+          id: rideData.id,
+          rideId: rideData.rideId,
+          otp: rideData.otp,
+          pickupAddress: rideData.pickup?.address || 'Unknown pickup',
+          destinationAddress: rideData.destination?.address || 'Unknown destination',
+          pickupCoordinates: rideData.pickup?.coordinates || { latitude: 0, longitude: 0 },
+          estimatedFare: rideData.pricing?.totalEstimated || 0,
+          distanceToPickup: rideData.distanceToPickup || 0,
+          passengerName: 'Passenger',
+          requestedAt: new Date(rideData.requestedAt),
+          estimatedTimeToPickup: rideData.estimatedTimeToPickup
+        }
+        
+        // Add to ride requests if not already present
+        setRideRequests(prev => {
+          const exists = prev.some(req => req.id === newRequest.id)
+          if (!exists) {
+            console.log('✅ Adding new ride request to list')
+            return [...prev, newRequest]
+          }
+          return prev
+        })
+      })
+      
+      // Listen for notification sounds
+      const unsubscribeSound = onNotificationSound(() => {
+        console.log('🔔 Playing notification sound')
+        playNotificationSound()
+      })
+      
+      return () => {
+        console.log('🧹 Cleaning up WebSocket listeners')
+        unsubscribeNewRides()
+        unsubscribeSound()
+      }
+    }
+  }, [isAuthenticated, user?.id, isConnected, joinAsDriver, onNewRide, onNotificationSound])
+
+  // Fallback polling when WebSocket is not connected (reduced frequency)
   useEffect(() => {
     let requestInterval: NodeJS.Timeout
 
-    if (driverLocation && user?.id) {
+    // Only use polling as fallback when WebSocket is not connected
+    if (driverLocation && user?.id && !isConnected) {
+      console.log('⚠️ WebSocket not connected, using polling fallback')
+      
       const fetchAvailableRides = async () => {
         try {
           const response = await fetch(
@@ -154,7 +216,7 @@ export default function DriverDashboard() {
                 pickupCoordinates: ride.pickup?.coordinates || { latitude: 0, longitude: 0 },
                 estimatedFare: ride.pricing?.totalEstimated || 0,
                 distanceToPickup: ride.distanceToPickup || 0,
-                passengerName: 'Passenger', // Will be enhanced with real user data
+                passengerName: 'Passenger',
                 requestedAt: new Date(ride.requestedAt),
                 estimatedTimeToPickup: ride.estimatedTimeToPickup
               }))
@@ -173,18 +235,20 @@ export default function DriverDashboard() {
         }
       }
 
-      // Fetch immediately and then every 8 seconds
+      // Fetch immediately and then every 3 seconds (faster fallback)
       fetchAvailableRides()
-      requestInterval = setInterval(fetchAvailableRides, 8000)
-    } else {
-      setRideRequests([])
+      requestInterval = setInterval(fetchAvailableRides, 3000)
+    } else if (isConnected) {
+      // Clear polling when WebSocket is connected
+      console.log('✅ WebSocket connected, disabling polling fallback')
+      setRideRequests([]) // Clear old polling results, WebSocket will populate
       setPreviousRequestCount(0)
     }
 
     return () => {
       if (requestInterval) clearInterval(requestInterval)
     }
-  }, [driverLocation, user?.id, previousRequestCount])
+  }, [driverLocation, user?.id, isConnected, previousRequestCount])
 
   // Play notification sound for new ride requests
   const playNotificationSound = () => {
@@ -342,17 +406,30 @@ export default function DriverDashboard() {
             <h1 className="text-lg font-bold text-gray-900">GoCabs Driver</h1>
           </div>
           <div className="flex items-center space-x-3">
-            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
-              driverLocation ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${
-                isUpdatingLocation ? 'bg-yellow-400 animate-pulse' : 
-                driverLocation ? 'bg-green-400' : 'bg-gray-400'
-              }`}></span>
-              <span>
-                {isUpdatingLocation ? 'Updating...' : 
-                 driverLocation ? 'Online' : 'Getting location...'}
-              </span>
+            <div className="flex items-center space-x-3">
+              <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
+                driverLocation ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${
+                  isUpdatingLocation ? 'bg-yellow-400 animate-pulse' : 
+                  driverLocation ? 'bg-green-400' : 'bg-gray-400'
+                }`}></span>
+                <span>
+                  {isUpdatingLocation ? 'Updating...' : 
+                   driverLocation ? 'Online' : 'Getting location...'}
+                </span>
+              </div>
+              
+              <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
+                isConnected ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${
+                  isConnected ? 'bg-blue-400' : 'bg-red-400'
+                }`}></span>
+                <span>
+                  {isConnected ? 'Real-time' : connectionError || 'Connecting...'}
+                </span>
+              </div>
             </div>
             <span className="text-sm text-gray-600">Hi, {user?.firstName}!</span>
             <button 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import { Ride, User } from '@/lib/models'
 import mongoose from 'mongoose'
+import { notifyNearbyDrivers } from '../../../pages/api/socket'
 
 export async function GET(request: NextRequest) {
   try {
@@ -129,6 +130,26 @@ export async function POST(request: NextRequest) {
     console.log('Step 6: Saving to database...')
     const savedRide = await ride.save()
     console.log('Step 6: SUCCESS! Ride saved with ID:', savedRide._id)
+    
+    // Step 7: Notify nearby drivers in real-time
+    console.log('Step 7: Notifying nearby drivers...')
+    try {
+      await notifyNearbyDrivers({
+        id: savedRide._id,
+        rideId: savedRide.rideId,
+        status: savedRide.status,
+        pickup: savedRide.pickup,
+        destination: savedRide.destination,
+        pricing: savedRide.pricing,
+        otp: savedRide.otp,
+        pickupCode: savedRide.pickupCode,
+        requestedAt: savedRide.requestedAt
+      })
+      console.log('Step 7: ✅ Nearby drivers notified via WebSocket')
+    } catch (notificationError) {
+      console.error('Step 7: ❌ Failed to notify drivers:', notificationError)
+      // Don't fail the ride creation if notifications fail
+    }
     
     return NextResponse.json({
       success: true,

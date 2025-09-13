@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import { Ride, Driver } from '@/lib/models'
 import mongoose from 'mongoose'
+import { notifyRiderStatusUpdate } from '../../../../../pages/api/socket'
 
 export async function POST(
   request: NextRequest,
@@ -149,6 +150,25 @@ export async function POST(
     })
 
     console.log('✅ Ride accepted successfully:', updatedRide._id)
+
+    // Notify rider in real-time about driver assignment
+    try {
+      await notifyRiderStatusUpdate(updatedRide.userId.toString(), {
+        id: updatedRide._id,
+        rideId: updatedRide.rideId,
+        status: updatedRide.status,
+        statusDisplay: 'Driver Assigned - En Route',
+        driverContact: updatedRide.driverContact,
+        driverLocation: updatedRide.driverLocation,
+        matchedAt: updatedRide.matchedAt,
+        otp: updatedRide.otp,
+        pickupCode: updatedRide.pickupCode
+      })
+      console.log('📱 Rider notified via WebSocket about driver assignment')
+    } catch (notificationError) {
+      console.error('❌ Failed to notify rider:', notificationError)
+      // Don't fail the acceptance if notifications fail
+    }
 
     return NextResponse.json({
       success: true,

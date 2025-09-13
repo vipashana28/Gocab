@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import MapView from '@/components/Map/MapView'
 import FareEstimation from '@/components/FareEstimation'
+import { useSocket } from '@/lib/hooks/use-socket'
 
 import { geocodeAddress, getBestGeocodeResult, validateAddressInput, formatLocationForDisplay } from '@/lib/geocoding'
 
@@ -42,6 +43,7 @@ interface ActiveRide {
     estimatedSaved: number
   }
   requestedAt: Date
+  matchedAt?: Date
   estimatedArrival?: string
   isSimulated?: boolean // Flag to identify simulated rides
 }
@@ -56,6 +58,12 @@ export default function DashboardPage() {
   const { isAuthenticated, user, isLoading, signOut } = useGoCabAuth()
   const { status } = useSession()
   const router = useRouter()
+  const { 
+    isConnected, 
+    connectionError, 
+    joinAsRider, 
+    onRideStatusUpdate 
+  } = useSocket()
   
   const [activeRide, setActiveRide] = useState<ActiveRide | null>(null)
   const [isBookingRide, setIsBookingRide] = useState(false)
@@ -155,6 +163,46 @@ export default function DashboardPage() {
     
     return () => clearTimeout(timer)
   }, [isAuthenticated, isLoading, router])
+
+  // WebSocket connection and real-time ride status updates
+  useEffect(() => {
+    if (isAuthenticated && user?.id && isConnected) {
+      console.log('🧑‍🤝‍🧑 Rider joining WebSocket as:', user.id)
+      joinAsRider(user.id)
+      
+      // Listen for ride status updates
+      const unsubscribeStatusUpdates = onRideStatusUpdate((rideData: any) => {
+        console.log('📱 Ride status update received:', rideData)
+        
+        // Update active ride with new status
+        setActiveRide(prev => {
+          if (prev && prev.id === rideData.id) {
+            return {
+              ...prev,
+              ...rideData,
+              status: rideData.status,
+              statusDisplay: rideData.statusDisplay,
+              driverContact: rideData.driverContact || prev.driverContact,
+              driverLocation: rideData.driverLocation || prev.driverLocation,
+              matchedAt: rideData.matchedAt || prev.matchedAt
+            }
+          }
+          return prev
+        })
+        
+        // Stop searching for driver if ride is matched
+        if (rideData.status === 'matched' && isSearchingForDriver) {
+          setIsSearchingForDriver(false)
+          console.log('✅ Driver found via WebSocket! OTP:', rideData.otp)
+        }
+      })
+      
+      return () => {
+        console.log('🧹 Cleaning up rider WebSocket listeners')
+        unsubscribeStatusUpdates()
+      }
+    }
+  }, [isAuthenticated, user?.id, isConnected, joinAsRider, onRideStatusUpdate, isSearchingForDriver])
 
   // Get user location
   useEffect(() => {
@@ -274,10 +322,13 @@ export default function DashboardPage() {
     if (isAuthenticated && user) {
       checkActiveRides()
       
-      // Only poll when not on first load and no stable active ride
-      if (!isFirstLoad && (!activeRide || activeRide.status === 'requested')) {
-        const interval = setInterval(checkActiveRides, 3000) // Poll every 3 seconds for faster driver matching
+      // Only poll when WebSocket is not connected and not on first load
+      if (!isConnected && !isFirstLoad && (!activeRide || activeRide.status === 'requested')) {
+        console.log('⚠️ WebSocket not connected, using polling fallback for ride status')
+        const interval = setInterval(checkActiveRides, 2000) // Faster fallback polling
         return () => clearInterval(interval)
+      } else if (isConnected && !isFirstLoad) {
+        console.log('✅ WebSocket connected, disabling ride status polling')
       }
     }
   }, [isAuthenticated, user, isFirstLoad, activeRide?.status])

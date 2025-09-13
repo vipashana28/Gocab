@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { io, Socket } from 'socket.io-client'
 
 interface DriverLocationData {
   coordinates: {
@@ -23,70 +24,146 @@ interface RideStatusData {
 export function useSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const socketRef = useRef<Socket | null>(null)
 
   useEffect(() => {
-    // Initialize connection check
-    const checkConnection = async () => {
+    // Initialize Socket.IO connection
+    const initSocket = async () => {
       try {
-        const response = await fetch('/api/socket')
-        if (response.ok) {
-          console.log('⚡ Real-time service available')
+        // First, initialize the Socket.IO server
+        await fetch('/api/socket')
+        
+        // Then connect to it
+        const socket = io({
+          path: '/api/socket',
+          addTrailingSlash: false,
+        })
+        
+        socketRef.current = socket
+        
+        socket.on('connect', () => {
+          console.log('⚡ Socket.IO connected:', socket.id)
           setIsConnected(true)
           setConnectionError(null)
-        }
+        })
+        
+        socket.on('disconnect', () => {
+          console.log('🔌 Socket.IO disconnected')
+          setIsConnected(false)
+        })
+        
+        socket.on('connect_error', (error) => {
+          console.error('❌ Socket.IO connection error:', error)
+          setConnectionError('Real-time service unavailable')
+          setIsConnected(false)
+        })
+        
       } catch (error) {
-        console.error('❌ Real-time service error:', error)
+        console.error('❌ Socket.IO initialization error:', error)
         setConnectionError('Real-time service unavailable')
         setIsConnected(false)
       }
     }
 
-    checkConnection()
-  }, [])
-
-  const joinRide = useCallback((rideId: string) => {
-    console.log('📍 Joining ride room (polling mode):', rideId)
-  }, [])
-
-  const leaveRide = useCallback((rideId: string) => {
-    console.log('🚪 Leaving ride room (polling mode):', rideId)
-  }, [])
-
-  const onDriverLocationUpdate = useCallback((callback: (data: DriverLocationData) => void) => {
-    // For polling mode, we'll handle this in the component
-    console.log('🗒️ Driver location update listener registered (polling mode)')
+    initSocket()
+    
+    // Cleanup on unmount
     return () => {
-      console.log('🧹 Driver location update listener cleaned up')
+      if (socketRef.current) {
+        console.log('🧹 Cleaning up Socket.IO connection')
+        socketRef.current.disconnect()
+        socketRef.current = null
+      }
     }
+  }, [])
+
+  const joinAsDriver = useCallback((driverId: string) => {
+    if (socketRef.current && isConnected) {
+      console.log('🚗 Joining as driver:', driverId)
+      socketRef.current.emit('driver:join', driverId)
+    }
+  }, [isConnected])
+
+  const joinAsRider = useCallback((riderId: string) => {
+    if (socketRef.current && isConnected) {
+      console.log('🧑‍🤝‍🧑 Joining as rider:', riderId)
+      socketRef.current.emit('rider:join', riderId)
+    }
+  }, [isConnected])
+
+  const onNewRide = useCallback((callback: (rideData: any) => void) => {
+    if (socketRef.current) {
+      console.log('🗒️ Listening for new rides')
+      socketRef.current.on('ride:new', callback)
+      
+      return () => {
+        if (socketRef.current) {
+          socketRef.current.off('ride:new', callback)
+        }
+      }
+    }
+    return () => {}
+  }, [])
+
+  const onNotificationSound = useCallback((callback: () => void) => {
+    if (socketRef.current) {
+      console.log('🔔 Listening for notification sounds')
+      socketRef.current.on('notification:sound', callback)
+      
+      return () => {
+        if (socketRef.current) {
+          socketRef.current.off('notification:sound', callback)
+        }
+      }
+    }
+    return () => {}
   }, [])
 
   const onRideStatusUpdate = useCallback((callback: (data: RideStatusData) => void) => {
-    // For polling mode, we'll handle this in the component  
-    console.log('🗒️ Ride status update listener registered (polling mode)')
-    return () => {
-      console.log('🧹 Ride status update listener cleaned up')
+    if (socketRef.current) {
+      console.log('🗒️ Listening for ride status updates')
+      socketRef.current.on('ride:status_update', callback)
+      
+      return () => {
+        if (socketRef.current) {
+          socketRef.current.off('ride:status_update', callback)
+        }
+      }
     }
+    return () => {}
   }, [])
 
-  const updateDriverLocation = useCallback((rideId: string, coordinates: { latitude: number, longitude: number }, heading?: number, speed?: number) => {
-    // This will be handled via API calls instead of socket
-    console.log('📍 Driver location update (API mode):', { rideId, coordinates })
+  const onDriverLocationUpdate = useCallback((callback: (data: DriverLocationData) => void) => {
+    if (socketRef.current) {
+      console.log('🗒️ Listening for driver location updates')
+      socketRef.current.on('driver:location_update', callback)
+      
+      return () => {
+        if (socketRef.current) {
+          socketRef.current.off('driver:location_update', callback)
+        }
+      }
+    }
+    return () => {}
   }, [])
 
-  const updateRideStatus = useCallback((rideId: string, status: string, statusDisplay: string, additionalInfo?: any) => {
-    // This will be handled via API calls instead of socket
-    console.log('📊 Ride status update (API mode):', { rideId, status, statusDisplay })
-  }, [])
+  const updateDriverLocation = useCallback((driverId: string, coordinates: { latitude: number, longitude: number }) => {
+    if (socketRef.current && isConnected) {
+      console.log('📍 Updating driver location:', { driverId, coordinates })
+      socketRef.current.emit('driver:update_location', { driverId, coordinates })
+    }
+  }, [isConnected])
 
   return {
-    socket: null, // No actual socket for now
+    socket: socketRef.current,
     isConnected,
     connectionError,
-    joinRide,
-    leaveRide,
-    onDriverLocationUpdate,
+    joinAsDriver,
+    joinAsRider,
+    onNewRide,
+    onNotificationSound,
     onRideStatusUpdate,
-    updateDriverLocation,
-    updateRideStatus
+    onDriverLocationUpdate,
+    updateDriverLocation
   }
 }
