@@ -335,11 +335,11 @@ export default function DriverDashboard() {
             <div className="w-8 h-8">
               <img 
                 src="/icons/GOLOGO.svg" 
-                alt="GoCab Logo" 
+                alt="GoCabs Logo" 
                 className="w-full h-full"
               />
             </div>
-            <h1 className="text-lg font-bold text-gray-900">GoCab Driver</h1>
+            <h1 className="text-lg font-bold text-gray-900">GoCabs Driver</h1>
           </div>
           <div className="flex items-center space-x-3">
             <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${

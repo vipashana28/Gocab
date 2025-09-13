@@ -113,7 +113,7 @@ const MapView = ({ center, zoom, markers = [], routes = [], polylineRoute, fitBo
         mapInstanceRef.current = new google.maps.Map(mapRef.current, {
           center: { lat: center[0], lng: center[1] },
           zoom,
-          mapId: 'gocab-map', // Required for Advanced Markers
+          mapId: 'gocabs-map', // Required for Advanced Markers
           mapTypeId: google.maps.MapTypeId.ROADMAP,
           styles: [
             {

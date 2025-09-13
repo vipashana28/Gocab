@@ -234,7 +234,7 @@ export default function EventsPage() {
               <div className="w-10 h-10 bg-green-600 rounded-lg p-2">
                 <img 
                   src="/icons/GOLOGO.svg" 
-                  alt="GoCab Logo" 
+                  alt="GoCabs Logo" 
                   className="w-full h-full"
                 />
               </div>
@@ -273,13 +273,20 @@ export default function EventsPage() {
                 href="https://x.com/DeCharge__" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="bg-white border-2 border-green-200 hover:border-green-300 text-gray-900 px-8 py-4 rounded-lg font-semibold text-lg transition-all hover:shadow-lg"
+                className="bg-white border-2 border-green-200 hover:border-green-300 rounded-xl p-8 transition-all hover:shadow-xl transform hover:scale-105"
               >
-                <div className="flex items-center space-x-3">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  <span>DeCharge</span>
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center">
+                    <img 
+                      src="/icons/Decharge.jpg" 
+                      alt="Decharge Logo" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-xl text-gray-900">Decharge</div>
+                    <div className="text-sm text-gray-500 mt-1">Premium Sponsor</div>
+                  </div>
                 </div>
               </a>
             </div>
@@ -288,17 +295,21 @@ export default function EventsPage() {
           {/* Partners Grid */}
           <div>
             <h3 className="text-xl font-semibold mb-8 text-center text-gray-800">Event Partners</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-5xl mx-auto">
               <a 
                 href="https://x.com/SuperteamSG" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg rounded-lg p-6 text-center transition-all group"
+                className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg rounded-lg p-6 text-center transition-all group transform hover:scale-105"
               >
                 <div className="mb-4">
-                  <svg className="w-8 h-8 mx-auto text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
+                  <div className="w-16 h-16 mx-auto rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center">
+                    <img 
+                      src="/icons/ST_singapore.jpg" 
+                      alt="Superteam Singapore Logo" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                 </div>
                 <div className="font-semibold text-gray-900 group-hover:text-green-700">
                   Superteam Singapore
@@ -310,12 +321,16 @@ export default function EventsPage() {
                 href="https://x.com/SEADePIN" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg rounded-lg p-6 text-center transition-all group"
+                className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg rounded-lg p-6 text-center transition-all group transform hover:scale-105"
               >
                 <div className="mb-4">
-                  <svg className="w-8 h-8 mx-auto text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
+                  <div className="w-16 h-16 mx-auto rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center">
+                    <img 
+                      src="/icons/SeaDEpin.jpg" 
+                      alt="SEA DePIN Logo" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                 </div>
                 <div className="font-semibold text-gray-900 group-hover:text-green-700">
                   SEA DePIN
@@ -327,18 +342,38 @@ export default function EventsPage() {
                 href="https://x.com/BackersStage" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg rounded-lg p-6 text-center transition-all group"
+                className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg rounded-lg p-6 text-center transition-all group transform hover:scale-105"
               >
                 <div className="mb-4">
-                  <svg className="w-8 h-8 mx-auto text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
+                  <div className="w-16 h-16 mx-auto rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center">
+                    <img 
+                      src="/icons/Backersstage.jpg" 
+                      alt="BackerStage Logo" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                 </div>
                 <div className="font-semibold text-gray-900 group-hover:text-green-700">
                   BackerStage
                 </div>
                 <div className="text-sm text-gray-500 mt-1">@BackersStage</div>
               </a>
+
+              <div className="bg-white border border-gray-200 rounded-lg p-6 text-center">
+                <div className="mb-4">
+                  <div className="w-16 h-16 mx-auto rounded-lg bg-green-100 flex items-center justify-center">
+                    <img 
+                      src="/icons/GOLOGO.svg" 
+                      alt="GoCabs Logo" 
+                      className="w-10 h-10"
+                    />
+                  </div>
+                </div>
+                <div className="font-semibold text-gray-900">
+                  GoCabs
+                </div>
+                <div className="text-sm text-gray-500 mt-1">Ride Partner</div>
+              </div>
             </div>
           </div>
         </div>

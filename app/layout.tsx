@@ -6,8 +6,8 @@ import AuthProvider from '@/lib/auth/auth-provider'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'GoCab - Your Eco-Friendly Ride',
-  description: 'Book sustainable rides with GoCab. Track your carbon savings while getting around the city.',
+  title: 'GoCabs - Your Eco-Friendly Ride',
+  description: 'Book sustainable rides with GoCabs. Track your carbon savings while getting around the city.',
   icons: {
     icon: '/icons/GOLOGO.svg'
   }

@@ -966,7 +966,7 @@ Every ride makes a difference during @hackerhouses & @token2049! 🚗💚`
             <div className="w-8 h-8">
               <img 
                 src="/icons/GOLOGO.svg" 
-                alt="GoCab Logo" 
+                alt="GoCabs Logo" 
                 className="w-full h-full"
               />
             </div>
