@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import MapView from '@/components/Map/MapView'
 import FareEstimation from '@/components/FareEstimation'
-import { useSocket } from '@/lib/hooks/use-socket'
+import { usePusher } from '@/lib/hooks/use-pusher'
 
 import { geocodeAddress, getBestGeocodeResult, validateAddressInput, formatLocationForDisplay } from '@/lib/geocoding'
 
@@ -63,7 +63,7 @@ export default function DashboardPage() {
     connectionError, 
     joinAsRider, 
     onRideStatusUpdate 
-  } = useSocket()
+  } = usePusher()
   
   const [activeRide, setActiveRide] = useState<ActiveRide | null>(null)
   const [isBookingRide, setIsBookingRide] = useState(false)

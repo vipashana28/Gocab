@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import { User } from '@/lib/models'
+import { updateDriverLocationViaPusher } from '@/lib/services/pusher'
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,6 +65,18 @@ export async function POST(request: NextRequest) {
       lat: location.latitude, 
       lng: location.longitude 
     })
+
+    // Broadcast location update via Pusher for real-time tracking
+    try {
+      await updateDriverLocationViaPusher(driverId, {
+        latitude: location.latitude,
+        longitude: location.longitude
+      })
+      console.log(`✅ Pusher: Location broadcast sent for driver ${driverId}`)
+    } catch (pusherError) {
+      console.error('❌ Pusher location broadcast failed:', pusherError)
+      // Don't fail the API call if Pusher fails
+    }
 
     return NextResponse.json({
       success: true,

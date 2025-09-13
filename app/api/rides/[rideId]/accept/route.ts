@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import { Ride, Driver } from '@/lib/models'
 import mongoose from 'mongoose'
-import { notifyRiderStatusUpdate } from '../../../../../pages/api/socket'
+import { notifyRiderStatusUpdateViaPusher } from '@/lib/services/pusher'
 
 export async function POST(
   request: NextRequest,
@@ -151,9 +151,9 @@ export async function POST(
 
     console.log('✅ Ride accepted successfully:', updatedRide._id)
 
-    // Notify rider in real-time about driver assignment
+    // Notify rider via Pusher about driver assignment
     try {
-      await notifyRiderStatusUpdate(updatedRide.userId.toString(), {
+      await notifyRiderStatusUpdateViaPusher(updatedRide.userId.toString(), {
         id: updatedRide._id,
         rideId: updatedRide.rideId,
         status: updatedRide.status,
@@ -164,9 +164,9 @@ export async function POST(
         otp: updatedRide.otp,
         pickupCode: updatedRide.pickupCode
       })
-      console.log('📱 Rider notified via WebSocket about driver assignment')
+      console.log('📱 Rider notified via Pusher about driver assignment')
     } catch (notificationError) {
-      console.error('❌ Failed to notify rider:', notificationError)
+      console.error('❌ Failed to notify rider via Pusher:', notificationError)
       // Don't fail the acceptance if notifications fail
     }
 

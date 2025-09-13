@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useGoCabAuth } from '@/lib/auth/use-gocab-auth-google'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { useSocket } from '@/lib/hooks/use-socket'
+import { usePusher } from '@/lib/hooks/use-pusher'
 import MapView from '@/components/Map/MapView'
 
 interface DriverLocation {
@@ -38,7 +38,7 @@ export default function DriverDashboard() {
     onNewRide, 
     onNotificationSound,
     updateDriverLocation 
-  } = useSocket()
+  } = usePusher()
   
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null)
   const [rideRequests, setRideRequests] = useState<RideRequest[]>([])
