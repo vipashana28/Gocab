@@ -42,6 +42,19 @@ export async function notifyNearbyDriversViaPusher(rideData: any): Promise<void>
     
     console.log(`🔔 Pusher: Looking for drivers near ${pickupLat}, ${pickupLng}`)
     
+    // First, let's see all users with driver profiles
+    const allDriverUsers = await User.find({
+      'driverProfile': { $exists: true },
+      isActive: true
+    }).lean()
+    
+    console.log(`📊 Pusher: Found ${allDriverUsers.length} total users with driver profiles`)
+    
+    // Log each driver's status for debugging
+    allDriverUsers.forEach(driver => {
+      console.log(`👤 Driver ${driver.firstName}: isOnline=${driver.driverProfile?.isOnline}, hasLocation=${!!driver.driverProfile?.currentLocation?.coordinates}`)
+    })
+    
     // Find all online drivers (using User model with driverProfile)
     const onlineDrivers = await User.find({
       'driverProfile.isOnline': true,
@@ -49,7 +62,7 @@ export async function notifyNearbyDriversViaPusher(rideData: any): Promise<void>
       isActive: true
     }).lean()
     
-    console.log(`📢 Pusher: Found ${onlineDrivers.length} online drivers`)
+    console.log(`📢 Pusher: Found ${onlineDrivers.length} online drivers out of ${allDriverUsers.length} total`)
     
     const pusher = getPusherServer()
     let notifiedCount = 0
