@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { Server as ServerIO } from 'socket.io'
 import { Server as NetServer } from 'http'
 import { connectToDatabase } from '@/lib/mongodb'
-import { Driver } from '@/lib/models'
+import { Driver, User } from '@/lib/models'
 
 export interface ServerToClientEvents {
   'ride:new': (rideData: any) => void
@@ -87,12 +87,12 @@ export default async function SocketHandler(req: NextApiRequest, res: NextApiRes
         // Join general drivers room for broadcast notifications
         socket.join('drivers')
         
-        // Update driver status to online
+        // Update driver status to online (using User model with driverProfile)
         try {
           await connectToDatabase()
-          await Driver.findByIdAndUpdate(driverId, {
-            isOnline: true,
-            lastSeen: new Date()
+          await User.findByIdAndUpdate(driverId, {
+            'driverProfile.isOnline': true,
+            lastActive: new Date()
           })
           console.log(`✅ Driver ${driverId} marked as online`)
         } catch (error) {
@@ -118,9 +118,9 @@ export default async function SocketHandler(req: NextApiRequest, res: NextApiRes
         
         try {
           await connectToDatabase()
-          await Driver.findByIdAndUpdate(driverId, {
-            'currentLocation.coordinates': coordinates,
-            'currentLocation.lastUpdated': new Date()
+          await User.findByIdAndUpdate(driverId, {
+            'driverProfile.currentLocation.coordinates': [coordinates.longitude, coordinates.latitude],
+            'driverProfile.lastLocationUpdate': new Date()
           })
           
           // Broadcast location update to any active rides
@@ -142,9 +142,9 @@ export default async function SocketHandler(req: NextApiRequest, res: NextApiRes
         if (socket.data.userType === 'driver' && socket.data.driverId) {
           try {
             await connectToDatabase()
-            await Driver.findByIdAndUpdate(socket.data.driverId, {
-              isOnline: false,
-              lastSeen: new Date()
+            await User.findByIdAndUpdate(socket.data.driverId, {
+              'driverProfile.isOnline': false,
+              lastActive: new Date()
             })
             console.log(`🚗 Driver ${socket.data.driverId} marked as offline`)
           } catch (error) {
@@ -183,21 +183,25 @@ export async function notifyNearbyDrivers(rideData: any) {
     const pickupLat = rideData.pickup.coordinates.latitude
     const pickupLng = rideData.pickup.coordinates.longitude
     
-    // Find all online drivers
-    const onlineDrivers = await Driver.find({
-      isOnline: true,
-      isAvailable: true,
-      status: 'active',
-      'currentLocation.coordinates.latitude': { $exists: true },
-      'currentLocation.coordinates.longitude': { $exists: true }
+    // Find all online drivers (using User model with driverProfile)
+    const onlineDrivers = await User.find({
+      'driverProfile.isOnline': true,
+      'driverProfile.currentLocation.coordinates': { $exists: true, $ne: null },
+      isActive: true
     }).lean()
     
     console.log(`📢 Notifying ${onlineDrivers.length} online drivers about new ride`)
     
     // Notify drivers within 5 miles
     for (const driver of onlineDrivers) {
-      const driverLat = driver.currentLocation.coordinates.latitude
-      const driverLng = driver.currentLocation.coordinates.longitude
+      // User model stores coordinates as [longitude, latitude] array
+      if (!driver.driverProfile?.currentLocation?.coordinates || driver.driverProfile.currentLocation.coordinates.length < 2) {
+        console.log(`⚠️ Driver ${driver.firstName} has invalid coordinates, skipping`)
+        continue
+      }
+      
+      const driverLng = driver.driverProfile.currentLocation.coordinates[0] // longitude
+      const driverLat = driver.driverProfile.currentLocation.coordinates[1] // latitude
       const distance = calculateDistance(pickupLat, pickupLng, driverLat, driverLng)
       
       if (distance <= 5) {
