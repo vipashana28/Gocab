@@ -36,20 +36,27 @@ export async function PATCH(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Check if phone number is already in use by another user
+    // Check if phone number is already in use by a different user (different email)
+    // Allow same email+phone combination to register multiple times
     const existingUser = await User.findOne({ 
       phone: cleanPhone,
       _id: { $ne: userId }
     })
 
     if (existingUser) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'PHONE_EXISTS',
-          message: 'This phone number is already registered to another account'
-        }
-      }, { status: 400 })
+      // Get current user's email to compare
+      const currentUser = await User.findById(userId)
+      
+      if (currentUser && existingUser.email !== currentUser.email) {
+        return NextResponse.json({
+          success: false,
+          error: {
+            code: 'PHONE_EXISTS',
+            message: 'This phone number is already registered to a different account'
+          }
+        }, { status: 400 })
+      }
+      // If emails match, allow the update (same person registering again)
     }
 
     // Update user's phone number
