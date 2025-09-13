@@ -326,13 +326,17 @@ export default function DriverDashboard() {
         console.log('✅ Ride accepted successfully:', result.data)
         
         // Set the accepted ride with full details including OTP
-        setAcceptedRide({
+        const acceptedRideData = {
           ...result.data,
           pickupAddress: rideRequest.pickupAddress,
           destinationAddress: rideRequest.destinationAddress,
           passengerName: rideRequest.passengerName,
-          pickupCoordinates: rideRequest.pickupCoordinates
-        })
+          pickupCoordinates: rideRequest.pickupCoordinates,
+          estimatedArrival: rideRequest.estimatedTimeToPickup || 'Calculating...'
+        }
+        
+        console.log('✅ Setting accepted ride data:', acceptedRideData)
+        setAcceptedRide(acceptedRideData)
         
         // Clear all ride requests as driver is now busy
         setRideRequests([])

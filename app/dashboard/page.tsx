@@ -176,16 +176,20 @@ export default function DashboardPage() {
         
         // Update active ride with new status
         setActiveRide(prev => {
-          if (prev && prev.id === rideData.id) {
-            return {
+          if (prev && (prev.id === rideData.id || prev.rideId === rideData.rideId)) {
+            const updatedRide = {
               ...prev,
               ...rideData,
               status: rideData.status,
               statusDisplay: rideData.statusDisplay,
               driverContact: rideData.driverContact || prev.driverContact,
               driverLocation: rideData.driverLocation || prev.driverLocation,
-              matchedAt: rideData.matchedAt || prev.matchedAt
+              matchedAt: rideData.matchedAt ? new Date(rideData.matchedAt) : prev.matchedAt,
+              otp: rideData.otp || prev.otp
             }
+            
+            console.log('✅ Updated active ride with driver info:', updatedRide)
+            return updatedRide
           }
           return prev
         })
@@ -193,7 +197,7 @@ export default function DashboardPage() {
         // Stop searching for driver if ride is matched
         if (rideData.status === 'matched' && isSearchingForDriver) {
           setIsSearchingForDriver(false)
-          console.log('✅ Driver found via WebSocket! OTP:', rideData.otp)
+          console.log('✅ Driver found via Pusher! Driver:', rideData.driverContact?.name, 'OTP:', rideData.otp)
         }
       })
       
