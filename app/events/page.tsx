@@ -359,7 +359,7 @@ export default function EventsPage() {
                 <div className="text-sm text-gray-500 mt-1">@BackersStage</div>
               </a>
 
-              <div className="bg-white border border-gray-200 rounded-lg p-6 text-center">
+              {/* <div className="bg-white border border-gray-200 rounded-lg p-6 text-center">
                 <div className="mb-4">
                   <div className="w-16 h-16 mx-auto rounded-lg bg-green-100 flex items-center justify-center">
                     <img 
@@ -373,7 +373,7 @@ export default function EventsPage() {
                   GoCabs
                 </div>
                 <div className="text-sm text-gray-500 mt-1">Ride Partner</div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>

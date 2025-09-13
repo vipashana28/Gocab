@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { Server as ServerIO } from 'socket.io'
 import { Server as NetServer } from 'http'
 import { connectToDatabase } from '@/lib/mongodb'
+
 import { Driver, User } from '@/lib/models'
 
 export interface ServerToClientEvents {
@@ -64,7 +65,12 @@ export default async function SocketHandler(req: NextApiRequest, res: NextApiRes
       cors: {
         origin: "*",
         methods: ["GET", "POST"]
-      }
+      },
+      // Vercel-friendly configuration
+      transports: ['polling'], // Force polling for Vercel compatibility
+      allowEIO3: true,
+      pingTimeout: 60000,
+      pingInterval: 25000
     })
     
     res.socket.server.io = io

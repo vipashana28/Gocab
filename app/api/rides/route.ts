@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/mongodb'
 import { Ride, User } from '@/lib/models'
 import mongoose from 'mongoose'
 import { notifyNearbyDrivers } from '../../../pages/api/socket'
+import { sendSSENotification } from '../notifications/sse/route'
 
 export async function GET(request: NextRequest) {
   try {
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
     // Step 7: Notify nearby drivers in real-time
     console.log('Step 7: Notifying nearby drivers...')
     try {
+      // Try WebSocket first
       await notifyNearbyDrivers({
         id: savedRide._id,
         rideId: savedRide.rideId,
@@ -147,8 +149,39 @@ export async function POST(request: NextRequest) {
       })
       console.log('Step 7: ✅ Nearby drivers notified via WebSocket')
     } catch (notificationError) {
-      console.error('Step 7: ❌ Failed to notify drivers:', notificationError)
-      // Don't fail the ride creation if notifications fail
+      console.error('Step 7: ❌ WebSocket notification failed:', notificationError)
+      
+      // Fallback to SSE notifications
+      try {
+        // Find nearby drivers for SSE fallback
+        await connectToDatabase()
+        const nearbyDrivers = await User.find({
+          'driverProfile.isOnline': true,
+          'driverProfile.currentLocation.coordinates': { $exists: true, $ne: null },
+          isActive: true
+        }).lean()
+        
+        console.log(`📡 Fallback: Notifying ${nearbyDrivers.length} drivers via SSE`)
+        
+        for (const driver of nearbyDrivers) {
+          sendSSENotification(driver._id.toString(), {
+            type: 'ride:new',
+            data: {
+              id: savedRide._id,
+              rideId: savedRide.rideId,
+              pickup: savedRide.pickup,
+              destination: savedRide.destination,
+              pricing: savedRide.pricing,
+              otp: savedRide.otp,
+              requestedAt: savedRide.requestedAt
+            }
+          })
+        }
+        
+        console.log('Step 7: ✅ Fallback SSE notifications sent')
+      } catch (sseError) {
+        console.error('Step 7: ❌ SSE fallback also failed:', sseError)
+      }
     }
     
     return NextResponse.json({
