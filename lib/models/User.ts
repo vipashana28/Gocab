@@ -11,6 +11,11 @@ export interface IUser extends mongoose.Document {
   phone?: string
   profilePicture?: string
   
+  // Vehicle Information (for drivers)
+  vehicleName?: string
+  licensePlate?: string
+  vehicleType?: '4-wheeler' | '6-wheeler'
+  
   // App-specific Data
   isSponsored: boolean
   sponsorshipDetails?: {
@@ -93,6 +98,21 @@ const userSchema = new mongoose.Schema<IUser>({
     trim: true
   },
   profilePicture: String,
+  
+  // Vehicle Information (for drivers)
+  vehicleName: {
+    type: String,
+    trim: true
+  },
+  licensePlate: {
+    type: String,
+    trim: true,
+    uppercase: true
+  },
+  vehicleType: {
+    type: String,
+    enum: ['4-wheeler', '6-wheeler']
+  },
   
   // App-specific Data
   isSponsored: {

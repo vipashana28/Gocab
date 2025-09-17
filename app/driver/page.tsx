@@ -7,7 +7,7 @@ import { useSession } from 'next-auth/react'
 import { usePusher } from '@/lib/hooks/use-pusher'
 import { useGPSTracking } from '@/lib/hooks/use-gps-tracking'
 import MapView from '@/components/Map/MapView'
-import PhoneCollectionModal from '@/components/PhoneCollectionModal'
+import PhoneCollectionModal, { DriverDetails } from '@/components/PhoneCollectionModal'
 import RouteDisplayModal from '@/components/RouteDisplayModal'
 
 interface DriverLocation {
@@ -521,7 +521,7 @@ export default function DriverDashboard() {
     setTimeout(() => { if (document.body.contains(modal)) modal.remove() }, 10000)
   }
 
-  const handlePhoneSubmit = async (phoneNumber: string) => {
+  const handlePhoneSubmit = async (driverDetails: DriverDetails) => {
     if (!user?.id) return
     
     setIsUpdatingPhone(true)
@@ -532,7 +532,10 @@ export default function DriverDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
-          phone: phoneNumber
+          phone: driverDetails.phoneNumber,
+          vehicleName: driverDetails.vehicleName,
+          licensePlate: driverDetails.licensePlate,
+          vehicleType: driverDetails.vehicleType
         })
       })
 

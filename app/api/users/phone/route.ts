@@ -7,17 +7,23 @@ export async function PATCH(request: NextRequest) {
     await connectToDatabase()
     
     const body = await request.json()
-    const { userId, phone } = body
+    const { userId, phone, vehicleName, licensePlate, vehicleType } = body
 
-    console.log('📞 Updating user phone number:', { userId, phone: phone ? '***' + phone.slice(-4) : 'null' })
+    console.log('📞 Updating driver details:', { 
+      userId, 
+      phone: phone ? '***' + phone.slice(-4) : 'null',
+      vehicleName: vehicleName || 'null',
+      licensePlate: licensePlate ? '***' + licensePlate.slice(-2) : 'null',
+      vehicleType: vehicleType || 'null'
+    })
 
     // Validate required fields
-    if (!userId || !phone) {
+    if (!userId || !phone || !vehicleName || !licensePlate || !vehicleType) {
       return NextResponse.json({
         success: false,
         error: {
           code: 'MISSING_FIELDS',
-          message: 'User ID and phone number are required'
+          message: 'User ID, phone number, vehicle name, license plate, and vehicle type are required'
         }
       }, { status: 400 })
     }
@@ -32,6 +38,38 @@ export async function PATCH(request: NextRequest) {
         error: {
           code: 'INVALID_PHONE',
           message: 'Invalid phone number format'
+        }
+      }, { status: 400 })
+    }
+
+    // Validate vehicle details
+    if (vehicleName.trim().length < 2 || vehicleName.trim().length > 50) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'INVALID_VEHICLE_NAME',
+          message: 'Vehicle name must be between 2 and 50 characters'
+        }
+      }, { status: 400 })
+    }
+
+    const plateRegex = /^[A-Z0-9\s\-]{6,10}$/i
+    if (!plateRegex.test(licensePlate.trim())) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'INVALID_LICENSE_PLATE',
+          message: 'License plate must be 6-10 characters (letters and numbers only)'
+        }
+      }, { status: 400 })
+    }
+
+    if (!['4-wheeler', '6-wheeler'].includes(vehicleType)) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'INVALID_VEHICLE_TYPE',
+          message: 'Vehicle type must be either 4-wheeler or 6-wheeler'
         }
       }, { status: 400 })
     }
@@ -59,17 +97,9 @@ export async function PATCH(request: NextRequest) {
       // If emails match, allow the update (same person registering again)
     }
 
-    // Update user's phone number
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { 
-        phone: cleanPhone,
-        lastActive: new Date()
-      },
-      { new: true }
-    )
-
-    if (!updatedUser) {
+    // First, get the current user to check if driverProfile exists
+    const currentUser = await User.findById(userId)
+    if (!currentUser) {
       return NextResponse.json({
         success: false,
         error: {
@@ -79,27 +109,77 @@ export async function PATCH(request: NextRequest) {
       }, { status: 404 })
     }
 
-    console.log('✅ Phone number updated successfully for user:', userId)
+    // Prepare update data
+    const updateData: any = {
+      phone: cleanPhone,
+      vehicleName: vehicleName.trim(),
+      licensePlate: licensePlate.trim().toUpperCase(),
+      vehicleType: vehicleType,
+      lastActive: new Date()
+    }
+
+    // Initialize or update driverProfile
+    if (!currentUser.driverProfile) {
+      // Create new driverProfile
+      updateData.driverProfile = {
+        isOnline: false,
+        vehicleInfo: vehicleName.trim(),
+        licensePlate: licensePlate.trim().toUpperCase(),
+        rating: 4.8
+      }
+    } else {
+      // Update existing driverProfile vehicle info
+      updateData['driverProfile.vehicleInfo'] = vehicleName.trim()
+      updateData['driverProfile.licensePlate'] = licensePlate.trim().toUpperCase()
+    }
+
+    // Update user's driver details
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      updateData,
+      { new: true }
+    )
+
+    if (!updatedUser) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'UPDATE_FAILED',
+          message: 'Failed to update user details'
+        }
+      }, { status: 500 })
+    }
+
+    console.log('✅ Driver details updated successfully for user:', userId)
 
     return NextResponse.json({
       success: true,
-      message: 'Phone number updated successfully',
+      message: 'Driver details updated successfully',
       data: {
         userId: updatedUser._id,
         phone: updatedUser.phone,
+        vehicleName: updatedUser.vehicleName,
+        licensePlate: updatedUser.licensePlate,
+        vehicleType: updatedUser.vehicleType,
         firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName
+        lastName: updatedUser.lastName,
+        driverProfile: updatedUser.driverProfile ? {
+          isOnline: updatedUser.driverProfile.isOnline,
+          vehicleInfo: updatedUser.driverProfile.vehicleInfo,
+          licensePlate: updatedUser.driverProfile.licensePlate,
+          rating: updatedUser.driverProfile.rating
+        } : null
       }
     })
 
   } catch (error: any) {
-    console.error('❌ Error updating phone number:', error)
+    console.error('❌ Error updating driver details:', error)
     
     return NextResponse.json({
       success: false,
       error: {
         code: 'SERVER_ERROR',
-        message: 'Failed to update phone number',
+        message: 'Failed to update driver details',
         details: error.message
       }
     }, { status: 500 })

@@ -7,6 +7,23 @@ import { useSession } from 'next-auth/react'
 import MapView from '@/components/Map/MapView'
 import FareEstimation from '@/components/FareEstimation'
 import { usePusher } from '@/lib/hooks/use-pusher'
+import { 
+  CheckCircle, 
+  Clock, 
+  MapPin, 
+  Share2, 
+  Twitter,
+  Heart,
+  Car,
+  User,
+  Phone,
+  X as XIcon,
+  Navigation,
+  Radio,
+  Zap,
+  Locate,
+  Radar
+} from 'lucide-react'
 
 import { geocodeAddress, getBestGeocodeResult, validateAddressInput, formatLocationForDisplay } from '@/lib/geocoding'
 
@@ -79,6 +96,9 @@ export default function DashboardPage() {
   const [routeData, setRouteData] = useState<any>(null)
   // const [isCalculatingFare, setIsCalculatingFare] = useState(false) // Now handled by FareEstimation component
   const [isSearchingForDriver, setIsSearchingForDriver] = useState(false)
+  const [searchTimeout, setSearchTimeout] = useState<number>(0) // seconds remaining
+  const [searchAttempt, setSearchAttempt] = useState<number>(0)
+  const [maxSearchAttempts] = useState<number>(3)
   const [isFirstLoad, setIsFirstLoad] = useState(true)
   const [fareError, setFareError] = useState<string | null>(null)
   const [showCompletionScreen, setShowCompletionScreen] = useState(false)
@@ -197,6 +217,8 @@ export default function DashboardPage() {
         // Stop searching for driver if ride is matched
         if (rideData.status === 'matched' && isSearchingForDriver) {
           setIsSearchingForDriver(false)
+          setSearchTimeout(0)
+          setSearchAttempt(0)
           console.log('✅ Driver found via Pusher! Driver:', rideData.driverContact?.name, 'OTP:', rideData.otp)
         }
       })
@@ -207,6 +229,55 @@ export default function DashboardPage() {
       }
     }
   }, [isAuthenticated, user?.id, isConnected, joinAsRider, onRideStatusUpdate, isSearchingForDriver])
+
+  // Driver search timeout logic
+  useEffect(() => {
+    let timeoutInterval: NodeJS.Timeout | null = null
+    
+    if (isSearchingForDriver && searchTimeout > 0) {
+      timeoutInterval = setInterval(() => {
+        setSearchTimeout(prev => {
+          const newTimeout = prev - 1
+          
+          if (newTimeout <= 0) {
+            // Timeout reached
+            console.log(`⏰ Driver search timeout (attempt ${searchAttempt}/${maxSearchAttempts})`)
+            
+            if (searchAttempt < maxSearchAttempts) {
+              // Auto-retry
+              console.log(`🔄 Auto-retrying driver search (attempt ${searchAttempt + 1}/${maxSearchAttempts})`)
+              setSearchTimeout(60) // Reset timer
+              setSearchAttempt(prev => prev + 1)
+              
+              // Re-trigger ride booking with same parameters
+              if (activeRide) {
+                setTimeout(() => {
+                  console.log('🔄 Re-booking ride for auto-retry...')
+                  // The ride is already in the database, so we just reset the search state
+                  // The existing polling should pick up the ride again
+                }, 1000)
+              }
+            } else {
+              // Max attempts reached
+              console.log('❌ Max driver search attempts reached')
+              alert(`Unable to find available drivers after ${maxSearchAttempts} attempts. Please try again in a few minutes.`)
+              cancelRideSearch()
+            }
+            
+            return 60 // Reset timer for next attempt or clear
+          }
+          
+          return newTimeout
+        })
+      }, 1000)
+    }
+    
+    return () => {
+      if (timeoutInterval) {
+        clearInterval(timeoutInterval)
+      }
+    }
+  }, [isSearchingForDriver, searchTimeout, searchAttempt, maxSearchAttempts, activeRide])
 
   // Get user location
   useEffect(() => {
@@ -307,6 +378,8 @@ export default function DashboardPage() {
               // If driver was just matched, stop searching
               if (rideData.status === 'matched' && isSearchingForDriver) {
                 setIsSearchingForDriver(false)
+                setSearchTimeout(0)
+                setSearchAttempt(0)
                 console.log('✅ Driver found! OTP:', rideData.otp)
               }
             } else {
@@ -700,6 +773,8 @@ export default function DashboardPage() {
               isSimulated: false // This is a real ride from database
             })
             setIsSearchingForDriver(true)
+            setSearchTimeout(60) // Start 60-second timer
+            setSearchAttempt(prev => prev + 1)
             setIsBookingRide(false) // Now safe to turn off booking mode since we have active ride
           }
         
@@ -721,6 +796,42 @@ export default function DashboardPage() {
       console.error('Error booking ride:', error)
       alert('Network error while booking ride')
       setIsBookingRide(false)
+    }
+  }
+
+  const cancelRideSearch = async () => {
+    try {
+      console.log('🚫 User cancelled ride search')
+      
+      // Cancel any ongoing ride if it exists
+      if (activeRide && activeRide.rideId) {
+        console.log('Cancelling ride:', activeRide.rideId)
+        const response = await fetch(`/api/rides/${activeRide.rideId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
+        
+        if (!response.ok) {
+          console.error('Failed to cancel ride on server')
+        }
+      }
+      
+      // Clear search state
+      setIsSearchingForDriver(false)
+      setSearchTimeout(0)
+      setSearchAttempt(0)
+      setActiveRide(null)
+      setShowBookingForm(false)
+      
+    } catch (error) {
+      console.error('Error cancelling ride search:', error)
+      // Still clear local state even if API call fails
+      setIsSearchingForDriver(false)
+      setSearchTimeout(0)
+      setSearchAttempt(0)
+      setActiveRide(null)
     }
   }
 
@@ -863,6 +974,97 @@ export default function DashboardPage() {
     }
   }
 
+  // Calculate real-time ETA based on driver location
+  const calculateDriverETA = useMemo(() => {
+    // Comprehensive safety checks
+    if (!activeRide?.driverLocation?.coordinates || 
+        !activeRide?.pickup?.coordinates ||
+        typeof activeRide.driverLocation.coordinates.latitude !== 'number' ||
+        typeof activeRide.driverLocation.coordinates.longitude !== 'number' ||
+        typeof activeRide.pickup.coordinates.latitude !== 'number' ||
+        typeof activeRide.pickup.coordinates.longitude !== 'number') {
+      return null
+    }
+
+    const driverLat = activeRide.driverLocation.coordinates.latitude
+    const driverLng = activeRide.driverLocation.coordinates.longitude
+    const pickupLat = activeRide.pickup.coordinates.latitude
+    const pickupLng = activeRide.pickup.coordinates.longitude
+
+    // Additional safety check for valid coordinate ranges
+    if (Math.abs(driverLat) > 90 || Math.abs(driverLng) > 180 ||
+        Math.abs(pickupLat) > 90 || Math.abs(pickupLng) > 180) {
+      return null
+    }
+
+    // Calculate distance using Haversine formula
+    const R = 6371 // Earth's radius in kilometers
+    const dLat = (pickupLat - driverLat) * Math.PI / 180
+    const dLng = (pickupLng - driverLng) * Math.PI / 180
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(driverLat * Math.PI / 180) * Math.cos(pickupLat * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+    const distance = R * c // Distance in km
+
+    // Estimate time based on average urban driving speed (25 km/h with traffic)
+    const averageSpeed = 25 // km/h
+    const estimatedMinutes = Math.round((distance / averageSpeed) * 60)
+
+    // Add some buffer time for city driving
+    const bufferMinutes = Math.min(5, Math.max(1, Math.round(distance * 2)))
+    const totalMinutes = estimatedMinutes + bufferMinutes
+
+    return {
+      distance: distance,
+      minutes: totalMinutes,
+      displayText: totalMinutes <= 1 ? 'Arriving now' : `${totalMinutes} min away`
+    }
+  }, [activeRide?.driverLocation, activeRide?.pickup])
+
+  // Update ETA every 15 seconds
+  const [currentETA, setCurrentETA] = useState<string>('')
+  useEffect(() => {
+    if (calculateDriverETA) {
+      setCurrentETA(calculateDriverETA.displayText)
+      
+      const etaInterval = setInterval(() => {
+        if (calculateDriverETA) {
+          setCurrentETA(calculateDriverETA.displayText)
+        }
+      }, 15000) // Update every 15 seconds
+
+      return () => clearInterval(etaInterval)
+    } else {
+      // Clear ETA when driver location is not available
+      setCurrentETA('')
+    }
+  }, [calculateDriverETA])
+
+  // Helper function to convert map coordinates to screen pixels (approximate)
+  const getScreenPosition = (lat: number, lng: number) => {
+    // Get map container dimensions
+    const mapWidth = window.innerWidth
+    const mapHeight = window.innerHeight
+    
+    // Get current map center
+    const centerLat = mapCenter.latitude
+    const centerLng = mapCenter.longitude
+    
+    // Approximate conversion (this is a simplified version - real maps use complex projections)
+    // For small areas, this linear approximation works reasonably well
+    const zoom = 13 // matching the MapView zoom
+    const scale = Math.pow(2, zoom) * 256 / 360
+    
+    const deltaLat = (lat - centerLat) * scale * Math.cos(centerLat * Math.PI / 180)
+    const deltaLng = (lng - centerLng) * scale
+    
+    const x = mapWidth / 2 + deltaLng
+    const y = mapHeight / 2 - deltaLat
+    
+    return { x, y }
+  }
+
   // Show loading if still checking auth or loading user data
   if (isLoading || status === 'loading') {
     return (
@@ -902,21 +1104,27 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
   // Show completion screen if ride just ended
   if (showCompletionScreen && completedRideData) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl shadow-lg p-8 max-w-md w-full mx-auto border border-neutral-200">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full mx-auto border border-neutral-200 relative overflow-hidden">
+          {/* Decorative background elements */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-green-100 rounded-full -translate-y-16 translate-x-16 opacity-50"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-100 rounded-full translate-y-12 -translate-x-12 opacity-30"></div>
+          
           {/* Header */}
-          <div className="text-center mb-6">
-            <div className="w-24 h-24 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4 border border-neutral-200">
-              <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+          <div className="text-center mb-6 relative z-10">
+            <div className="w-24 h-24 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-green-200 shadow-lg">
+              <CheckCircle className="w-12 h-12 text-green-600" />
             </div>
             <h1 className="text-3xl font-bold text-neutral-900 mb-3">
-              Thank you for choosing Go Cabs!
+              Thank you for choosing GoCabs!
             </h1>
             <p className="text-lg text-neutral-600">
-              Your clean-green journey is complete
+              Your eco-friendly journey is complete
             </p>
+            <div className="flex items-center justify-center mt-2 space-x-1">
+              <Heart className="w-4 h-4 text-red-500 fill-current" />
+              <span className="text-sm text-neutral-500">Making a difference, one ride at a time</span>
+            </div>
           </div>
 
           {/* Trip Summary */}
@@ -945,9 +1153,7 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
           <div className="bg-neutral-50 rounded-2xl p-6 mb-6 border border-neutral-200">
             <div className="text-center mb-4">
               <div className="flex items-center justify-center space-x-2">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <Radio className="w-6 h-6 text-green-600" />
                 <h3 className="font-semibold text-neutral-900 text-xl">Environmental Impact</h3>
               </div>
               <p className="text-neutral-600 text-base">You made a positive difference!</p>
@@ -985,13 +1191,14 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
           </div>
 
           {/* Action Buttons */}
-          <div className="space-y-3">
+          <div className="space-y-3 relative z-10">
             <button
               onClick={shareOnX}
-              className="w-full bg-neutral-900 text-white py-4 px-6 rounded-full font-medium hover:bg-black transition-colors flex items-center justify-center space-x-2 text-lg shadow-sm"
+              className="w-full bg-black text-white py-4 px-6 rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 flex items-center justify-center space-x-3 text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
-              <span className="text-xl">𝕏</span>
-              <span>Share your impact on X</span>
+              <XIcon className="w-5 h-5" />
+              <span>Share your impact on 𝕏</span>
+              <Share2 className="w-4 h-4" />
             </button>
             
             <button
@@ -999,9 +1206,10 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
                 setShowCompletionScreen(false)
                 setCompletedRideData(null)
               }}
-              className="w-full bg-green-600 text-white py-4 px-6 rounded-full font-medium hover:bg-green-700 transition-colors text-lg shadow-sm"
+              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 px-6 rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all duration-200 text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center space-x-2"
             >
-              Book Another Eco-Ride
+              <Heart className="w-5 h-5 fill-current" />
+              <span>Book Another Eco-Ride</span>
             </button>
           </div>
 
@@ -1039,6 +1247,152 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
           } : undefined}
           fitBounds={!!routeData}
         />
+        
+        {/* Animated Location Pings Overlay */}
+        {activeRide && (
+          <div className="absolute inset-0 pointer-events-none z-10">
+            {/* Driver Location Ping */}
+            {activeRide.driverLocation?.coordinates && (() => {
+              const pos = getScreenPosition(
+                activeRide.driverLocation.coordinates.latitude,
+                activeRide.driverLocation.coordinates.longitude
+              )
+              return (
+                <div 
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
+                >
+                  <div className="relative animate-pulse">
+                    <Radio className="w-6 h-6 text-blue-500 animate-bounce" />
+                    <div className="absolute -top-1 -left-1 w-8 h-8 bg-blue-400/30 rounded-full animate-ping"></div>
+                    <div className="absolute -top-2 -left-2 w-10 h-10 bg-blue-300/20 rounded-full animate-ping" style={{ animationDelay: '1s' }}></div>
+                  </div>
+                  <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+                    <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-full font-medium shadow-lg">
+                      🚗 Driver
+                    </span>
+                  </div>
+                </div>
+              )
+            })()}
+            
+            {/* Pickup Location Ping */}
+            {activeRide.pickup?.coordinates && (() => {
+              const pos = getScreenPosition(
+                activeRide.pickup.coordinates.latitude,
+                activeRide.pickup.coordinates.longitude
+              )
+              return (
+                <div 
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
+                >
+                  <div className="relative animate-pulse">
+                    <Navigation className="w-6 h-6 text-green-500 animate-bounce" />
+                    <div className="absolute -top-1 -left-1 w-8 h-8 bg-green-400/30 rounded-full animate-ping"></div>
+                    <div className="absolute -top-2 -left-2 w-10 h-10 bg-green-300/20 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
+                  </div>
+                  <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+                    <span className="text-xs bg-green-600 text-white px-2 py-1 rounded-full font-medium shadow-lg">
+                      📍 Pickup
+                    </span>
+                  </div>
+                </div>
+              )
+            })()}
+            
+            {/* Destination Location Ping */}
+            {activeRide.destination?.coordinates && (() => {
+              const pos = getScreenPosition(
+                activeRide.destination.coordinates.latitude,
+                activeRide.destination.coordinates.longitude
+              )
+              return (
+                <div 
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
+                >
+                  <div className="relative animate-pulse">
+                    <Zap className="w-6 h-6 text-red-500 animate-bounce" />
+                    <div className="absolute -top-1 -left-1 w-8 h-8 bg-red-400/30 rounded-full animate-ping"></div>
+                    <div className="absolute -top-2 -left-2 w-10 h-10 bg-red-300/20 rounded-full animate-ping" style={{ animationDelay: '0.75s' }}></div>
+                  </div>
+                  <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+                    <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full font-medium shadow-lg">
+                      🎯 Destination
+                    </span>
+                  </div>
+                </div>
+              )
+            })()}
+            
+            {/* Live Tracking Indicator */}
+            {(activeRide.status === 'matched' || activeRide.status === 'driver_en_route' || activeRide.status === 'in_progress') && (
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
+                <div className="bg-emerald-600/90 backdrop-blur text-white px-4 py-2 rounded-full flex items-center space-x-2 animate-pulse shadow-lg">
+                  <Radar className="w-4 h-4 animate-spin" />
+                  <span className="text-sm font-medium">🛰️ Live Tracking Active</span>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-ping"></div>
+                </div>
+              </div>
+            )}
+            
+            {/* Real-time Connection Status */}
+            {isConnected && activeRide && (
+              <div className="absolute top-16 left-1/2 transform -translate-x-1/2">
+                <div className="bg-blue-600/80 backdrop-blur text-white px-3 py-1 rounded-full flex items-center space-x-2 text-xs">
+                  <Locate className="w-3 h-3 animate-pulse" />
+                  <span>📡 Real-time Connected</span>
+                </div>
+              </div>
+            )}
+            
+            {/* Driver Search Radar Effect */}
+            {isSearchingForDriver && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="relative">
+                  {/* Radar sweep effect */}
+                  <div className="w-32 h-32 border-4 border-green-500/30 rounded-full animate-ping"></div>
+                  <div className="absolute inset-2 w-28 h-28 border-4 border-green-500/50 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
+                  <div className="absolute inset-4 w-24 h-24 border-4 border-green-500/70 rounded-full animate-ping" style={{ animationDelay: '1s' }}></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-green-600 text-white p-3 rounded-full">
+                      <Radar className="w-6 h-6 animate-spin" />
+                    </div>
+                  </div>
+                  {/* Search status */}
+                  <div className="absolute top-40 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+                    <div className="bg-green-600/90 backdrop-blur text-white px-4 py-2 rounded-full text-sm font-medium">
+                      🔍 Searching for drivers...
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* User Current Location Ping */}
+            {userLocation && !activeRide && (() => {
+              const pos = getScreenPosition(userLocation.latitude, userLocation.longitude)
+              return (
+                <div 
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
+                >
+                  <div className="relative">
+                    <div className="w-4 h-4 bg-blue-600 rounded-full animate-pulse"></div>
+                    <div className="absolute -top-1 -left-1 w-6 h-6 bg-blue-400/40 rounded-full animate-ping"></div>
+                    <div className="absolute -top-2 -left-2 w-8 h-8 bg-blue-300/30 rounded-full animate-ping" style={{ animationDelay: '0.3s' }}></div>
+                  </div>
+                  <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+                    <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-full font-medium shadow-lg">
+                      📍 You are here
+                    </span>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        )}
       </div>
 
       {/* Top Header */}
@@ -1112,9 +1466,7 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
                     />
                   ) : (
                     <div className="w-full h-full bg-neutral-300 flex items-center justify-center">
-                      <svg className="w-5 h-5 sm:w-6 sm:h-6 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
+                      <User className="w-5 h-5 sm:w-6 sm:h-6 text-neutral-600" />
                     </div>
                   )}
                 </div>
@@ -1129,23 +1481,52 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
               </span>
             </div>
 
-            {/* Estimated Arrival */}
-            {activeRide.estimatedArrival && (
-              <div className="bg-neutral-50 rounded-lg p-3 mb-4 border border-neutral-200">
-                <p className="text-sm text-neutral-700">
-                  <span className="font-medium">
-                    {activeRide.status === 'arrived' ? 'Status:' : 'Arriving in:'}
-                  </span> {activeRide.estimatedArrival}
-                </p>
-                {activeRide.driverLocation && (
-                  <div className="flex items-center space-x-1 text-xs text-neutral-600 mt-1">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span>Location updated {new Date(activeRide.driverLocation.lastUpdated).toLocaleTimeString()}</span>
+            {/* Real-time Driver ETA - Prominent Display */}
+            {((currentETA && currentETA.trim()) || (activeRide.estimatedArrival && activeRide.estimatedArrival.trim())) && activeRide.status !== 'arrived' && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4 mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-green-800">
+                        {currentETA || activeRide.estimatedArrival}
+                      </p>
+                      <p className="text-sm text-green-600">
+                        {calculateDriverETA?.distance && typeof calculateDriverETA.distance === 'number' ? 
+                          `${calculateDriverETA.distance.toFixed(1)} km away` : 
+                          'En route to pickup'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                    <p className="text-xs text-green-600 mt-1">Live tracking</p>
+                  </div>
+                </div>
+                {activeRide.driverLocation?.lastUpdated && (
+                  <div className="flex items-center justify-center space-x-1 text-xs text-green-600 mt-3 pt-3 border-t border-green-200">
+                    <MapPin className="w-3 h-3" />
+                    <span>Updated: {new Date(activeRide.driverLocation.lastUpdated).toLocaleTimeString()}</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Driver Arrived Status */}
+            {activeRide.status === 'arrived' && (
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-xl p-4 mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-blue-800">Driver has arrived!</p>
+                    <p className="text-sm text-blue-600">Look for {activeRide.driverContact?.vehicleInfo} • {activeRide.driverContact?.licensePlate}</p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1394,9 +1775,9 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
                       <span>Finding Driver...</span>
                     </div>
                   ) : fareEstimate ? (
-                    'Book Eco-Friendly Ride'
+                    `Book Ride • S$${fareEstimate.totalFare.toFixed(2)}`
                   ) : (
-                    'Enter destination to see impact'
+                    'Enter destination to see fare'
                   )}
                 </button>
               </form>
@@ -1417,27 +1798,61 @@ Every ride makes a difference during @hackerhouses & @token2049! #EcoFriendly #S
       {/* User Location Indicator */}
       {userLocation && (
         <div className="absolute bottom-32 right-4 z-40">
-          <button className="bg-white p-3 rounded-full shadow-lg hover:bg-neutral-50">
-            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+          <button className="bg-white p-3 rounded-full shadow-lg hover:bg-neutral-50 transition-all group">
+            <MapPin className="w-6 h-6 text-blue-600 group-hover:scale-110 transition-transform" />
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping"></div>
           </button>
         </div>
       )}
 
 
 
-      {/* Searching for Driver Overlay */}
+      {/* Searching for Driver Overlay - Non-blocking with cancel option */}
       {isSearchingForDriver && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center z-50 transition-opacity duration-300 px-4">
-          <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-b-2 border-white mb-4"></div>
-          <h2 className="text-white text-xl sm:text-2xl font-semibold mb-2 text-center">
-            Searching for Drivers
-          </h2>
-          <p className="text-neutral-300 text-base sm:text-lg text-center">
-            Hold tight! We're finding the best ride for you.
-          </p>
+          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-sm w-full mx-4 text-center shadow-2xl">
+            <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-b-2 border-green-600 mb-4 mx-auto"></div>
+            <h2 className="text-neutral-900 text-xl sm:text-2xl font-semibold mb-2">
+              Searching for Drivers
+            </h2>
+            <p className="text-neutral-600 text-base mb-4">
+              Finding the best ride for you...
+            </p>
+            
+            {/* Timer and attempt display */}
+            <div className="mb-6">
+              <div className="flex items-center justify-center space-x-2 mb-2">
+                <div className="w-3 h-3 bg-green-600 rounded-full animate-pulse"></div>
+                <span className="text-sm text-neutral-600">
+                  Attempt {searchAttempt} of {maxSearchAttempts}
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-green-600 mb-1">
+                {Math.floor(searchTimeout / 60)}:{(searchTimeout % 60).toString().padStart(2, '0')}
+              </div>
+              <div className="w-full bg-neutral-200 rounded-full h-2">
+                <div 
+                  className="bg-green-600 h-2 rounded-full transition-all duration-1000 ease-linear" 
+                  style={{ width: `${(searchTimeout / 60) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+            
+            {/* Cancel button */}
+            <button
+              onClick={cancelRideSearch}
+              className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-700 py-3 px-6 rounded-xl font-medium transition-all duration-200"
+            >
+              Cancel Search
+            </button>
+            
+            {/* Auto-retry info */}
+            {searchAttempt < maxSearchAttempts && (
+              <p className="text-xs text-neutral-500 mt-3">
+                Will auto-retry {maxSearchAttempts - searchAttempt} more time{maxSearchAttempts - searchAttempt !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>

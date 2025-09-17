@@ -24,6 +24,7 @@ interface FareEstimate {
   distanceFare: number
   timeFare: number
   surgeFare: number
+  platformFee: number
   totalFare: number
   currency: string
   breakdown: {
@@ -31,39 +32,48 @@ interface FareEstimate {
     perKmRate: number
     perMinuteRate: number
     surgeMultiplier: number
+    platformFeePercentage: number
     distance: number
     duration: number
   }
 }
 
-// Fare calculation logic
+// Singapore Dollar (SGD) fare calculation logic
 function calculateFare(distanceKm: number, durationMinutes: number, surgeMultiplier: number = 1.0): FareEstimate {
-  // Base rates (in USD - can be made configurable)
-  const BASE_FARE = 2.50
-  const PER_KM_RATE = 1.20
-  const PER_MINUTE_RATE = 0.25
-  const MIN_FARE = 5.00
+  // Singapore rates as specified
+  const BASE_FARE = 3.50          // SGD 3.50
+  const PER_KM_RATE = 0.70        // SGD 0.70 per kilometer
+  const PER_MINUTE_RATE = 0.25    // SGD 0.25 per minute
+  const PLATFORM_FEE_PERCENTAGE = 0.05  // 5% platform fee
+  const MIN_FARE = 4.00           // Minimum fare SGD 4.00
 
   const baseFare = BASE_FARE
   const distanceFare = distanceKm * PER_KM_RATE
   const timeFare = durationMinutes * PER_MINUTE_RATE
   
+  // Calculate subtotal before platform fee
   const subtotal = baseFare + distanceFare + timeFare
   const surgeFare = subtotal * (surgeMultiplier - 1)
-  const totalFare = Math.max(subtotal + surgeFare, MIN_FARE)
+  const subtotalWithSurge = subtotal + surgeFare
+  
+  // Apply platform fee (5% of subtotal + surge)
+  const platformFee = subtotalWithSurge * PLATFORM_FEE_PERCENTAGE
+  const totalFare = Math.max(subtotalWithSurge + platformFee, MIN_FARE)
 
   return {
     baseFare,
     distanceFare,
     timeFare,
     surgeFare,
+    platformFee,
     totalFare: Math.round(totalFare * 100) / 100, // Round to 2 decimal places
-    currency: 'USD',
+    currency: 'SGD',
     breakdown: {
       baseRate: BASE_FARE,
       perKmRate: PER_KM_RATE,
       perMinuteRate: PER_MINUTE_RATE,
       surgeMultiplier,
+      platformFeePercentage: PLATFORM_FEE_PERCENTAGE,
       distance: Math.round(distanceKm * 100) / 100,
       duration: Math.round(durationMinutes * 100) / 100
     }

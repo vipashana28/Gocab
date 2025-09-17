@@ -3,6 +3,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useGoCabAuth } from '@/lib/auth/use-gocab-auth-google'
 import { useRouter } from 'next/navigation'
+import { 
+  Car, 
+  Clock, 
+  MapPin, 
+  Leaf, 
+  CheckCircle, 
+  Calendar,
+  X as XIcon
+} from 'lucide-react'
 
 interface Event {
   _id: string
@@ -254,9 +263,7 @@ export default function EventsPage() {
                 aria-label="Follow GoCabs on X"
               >
                 {/* X icon */}
-                <svg viewBox="0 0 24 24" className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" aria-hidden="true">
-                  <path d="M18.244 2H21l-6.56 7.49L22.5 22h-6.93l-4.52-5.95L5.9 22H3.14l7.02-8.02L1.5 2h7.03l4.07 5.47L18.24 2Zm-1.216 18h1.89L8.05 4h-1.9l10.878 16Z"/>
-                </svg>
+                <XIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span className="hidden sm:inline">Follow</span>
               </a>
 
@@ -285,38 +292,28 @@ export default function EventsPage() {
             </p>
 
             {/* Moving banner (icons only) */}
-            <div className="relative overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50">
-              <div className="flex whitespace-nowrap animate-[marquee_8s_linear_infinite]">
-                {[
-                  { text: 'Eco-friendly rides', icon: (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M5 11h3l3-7h4a4 4 0 014 4v7h-2a3 3 0 11-6 0H9a3 3 0 11-6 0H1v-2a2 2 0 012-2h2Z"/></svg>
-                  )},
-                  { text: 'Instant booking', icon: (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H7a2 2 0 00-2 2v3h14V5a2 2 0 00-2-2ZM5 10v7a2 2 0 002 2h10a2 2 0 002-2v-7H5Zm7 2a3 3 0 110 6 3 3 0 010-6Z"/></svg>
-                  )},
-                  { text: 'Venue-aware routing', icon: (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 017 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 017-7Zm0 9.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5Z"/></svg>
-                  )},
-                  { text: 'Carbon neutral', icon: (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M7 20a7 7 0 110-14c.62 0 1.21.08 1.77.24A6 6 0 1120 13h-3a3 3 0 10-3 3H7Z"/></svg>
-                  )},
-                  { text: 'Verified partners', icon: (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 12l2 2 4-4 2 2-6 6-4-4 2-2Z"/></svg>
-                  )}
-                ].concat([
-                  { text: 'Eco-friendly rides', icon: (<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M5 11h3l3-7h4a4 4 0 014 4v7h-2a3 3 0 11-6 0H9a3 3 0 11-6 0H1v-2a2 2 0 012-2h2Z"/></svg>) },
-                  { text: 'Instant booking', icon: (<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H7a2 2 0 00-2 2v3h14V5a2 2 0 00-2-2ZM5 10v7a2 2 0 002 2h10a2 2 0 002-2v-7H5Zm7 2a3 3 0 110 6 3 3 0 010-6Z"/></svg>) },
-                  { text: 'Venue-aware routing', icon: (<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 017 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 017-7Zm0 9.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5Z"/></svg>) },
-                  { text: 'Carbon neutral', icon: (<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M7 20a7 7 0 110-14c.62 0 1.21.08 1.77.24A6 6 0 1120 13h-3a3 3 0 10-3 3H7Z"/></svg>) },
-                  { text: 'Verified partners', icon: (<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 12l2 2 4-4 2 2-6 6-4-4 2-2Z"/></svg>) }
-                ]).map((item, i) => (
-                  <span key={i} className="px-5 py-3 text-sm font-medium text-neutral-700 border-r border-neutral-200 inline-flex items-center gap-2">
-                    {item.icon}
-                    {item.text}
-                  </span>
-                ))}
-              </div>
-            </div>
+<div className="relative overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50">
+  <div className="flex whitespace-nowrap animate-[marquee_8s_linear_infinite]">
+    {[
+      { text: 'Eco-friendly rides', icon: <Car className="w-4 h-4" /> },
+      { text: 'Instant booking', icon: <Clock className="w-4 h-4" /> },
+      { text: 'Venue-aware routing', icon: <MapPin className="w-4 h-4" /> },
+      { text: 'Carbon neutral', icon: <Leaf className="w-4 h-4" /> },
+      { text: 'Verified partners', icon: <CheckCircle className="w-4 h-4" /> }
+    ].concat([
+      { text: 'Eco-friendly rides', icon: <Car className="w-4 h-4" /> },
+      { text: 'Instant booking', icon: <Clock className="w-4 h-4" /> },
+      { text: 'Venue-aware routing', icon: <MapPin className="w-4 h-4" /> },
+      { text: 'Carbon neutral', icon: <Leaf className="w-4 h-4" /> },
+      { text: 'Verified partners', icon: <CheckCircle className="w-4 h-4" /> }
+    ]).map((item, i) => (
+      <span key={i} className="px-5 py-3 text-sm font-medium text-neutral-700 border-r border-neutral-200 inline-flex items-center gap-2">
+        {item.icon}
+        {item.text}
+      </span>
+    ))}
+  </div>
+</div>
 
             <style jsx>{`
               @keyframes marquee {
@@ -393,7 +390,7 @@ export default function EventsPage() {
         <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-neutral-100 flex items-center justify-center border border-neutral-200">
           <img src="/icons/Backersstage.jpg" alt="BackerStage Logo" className="w-full h-full object-cover" />
         </div>
-        <span className="text-xs sm:text-sm font-medium text-neutral-800">BackerStage</span>
+        <span className="text-xs sm:text-sm font-medium text-neutral-800">BackersStage</span>
       </a>
     </div>
   </div>
@@ -464,21 +461,22 @@ export default function EventsPage() {
             <div className="group relative overflow-hidden rounded-2xl border border-neutral-200">
               <div
                 className="
-                  flex gap-6 whitespace-nowrap py-6 px-6 will-change-transform
-                  animate-[cardscroll_3s_linear_infinite]
+                  flex gap-4 sm:gap-6 whitespace-nowrap py-6 px-6 will-change-transform
+                  animate-[cardscroll_10s_linear_infinite] sm:animate-[cardscroll_10s_linear_infinite]
                   group-hover:[animation-play-state:paused]
                   focus-within:[animation-play-state:paused]
                 "
               >
-                {[...list, ...list].map((ev, idx) => (
+                {[...list, ...list, ...list, ...list, ...list].map((ev, idx) => (
                   <div
                     key={`${ev._id}-${idx}`}
                     className="
-                      inline-flex align-top w-[420px] md:w-[520px]
+                      inline-flex align-top w-[280px] sm:w-[320px] md:w-[420px] lg:w-[520px]
                       bg-white border border-neutral-200 rounded-2xl
                       hover:shadow-xl transition
                       focus-within:ring-2 focus-within:ring-neutral-900
-                      px-5 py-5
+                      px-4 sm:px-5 py-4 sm:py-5
+                      flex-shrink-0
                     "
                   >
                     <EventStripCard
@@ -493,7 +491,7 @@ export default function EventsPage() {
             <style jsx>{`
               @keyframes cardscroll {
                 0% { transform: translateX(0); }
-                100% { transform: translateX(-50%); }
+                100% { transform: translateX(-80%); }
               }
             `}</style>
           </div>
@@ -618,16 +616,11 @@ function EventStripCard({
       {/* Meta */}
       <div className="mt-2 space-y-1 text-sm text-neutral-700">
         <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-neutral-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 4l6 6m0-6l-6 6" />
-          </svg>
+          <Calendar className="w-4 h-4 text-neutral-900" />
           <span className="tabular-nums">{prettyDate(event.startDate)}</span>
         </div>
         <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-neutral-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
+          <MapPin className="w-4 h-4 text-neutral-900" />
           <span className="truncate">{event.venue.name}</span>
         </div>
       </div>
@@ -665,9 +658,7 @@ function EventStripCard({
           }}
           className="inline-flex justify-center items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium border border-neutral-300 hover:bg-neutral-50"
         >
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor" aria-hidden="true">
-            <path d="M18.244 2H21l-6.56 7.49L22.5 22h-6.93l-4.52-5.95L5.9 22H3.14l7.02-8.02L1.5 2h7.03l4.07 5.47L18.24 2Zm-1.216 18h1.89L8.05 4h-1.9l10.878 16Z"/>
-          </svg>
+          <XIcon className="w-4 h-4" />
           Follow
         </button>
       </div>

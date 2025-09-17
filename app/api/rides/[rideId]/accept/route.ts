@@ -115,10 +115,8 @@ export async function POST(
       driverContact: {
         name: driver.firstName + ' ' + (driver.lastName || ''),
         phone: driver.phone || driver.driverProfile.phone,
-        vehicleInfo: driver.driverProfile.vehicle ? 
-          `${driver.driverProfile.vehicle.make} ${driver.driverProfile.vehicle.model} (${driver.driverProfile.vehicle.color})` : 
-          'Vehicle info not available',
-        licensePlate: driver.driverProfile.vehicle?.licensePlate || 'N/A',
+        vehicleInfo: driver.driverProfile.vehicleInfo || driver.vehicleName || 'Vehicle info not available',
+        licensePlate: driver.driverProfile.licensePlate || driver.licensePlate || 'N/A',
         photo: driver.profilePhoto
       }
     }

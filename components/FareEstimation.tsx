@@ -1,12 +1,22 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { 
+  MapPin, 
+  AlertTriangle, 
+  Route, 
+  Clock, 
+  Cloud, 
+  Sparkles, 
+  Fuel 
+} from 'lucide-react'
 
 interface FareEstimate {
   baseFare: number
   distanceFare: number
   timeFare: number
   surgeFare: number
+  platformFee: number
   totalFare: number
   currency: string
   breakdown: {
@@ -14,6 +24,7 @@ interface FareEstimate {
     perKmRate: number
     perMinuteRate: number
     surgeMultiplier: number
+    platformFeePercentage: number
     distance: number
     duration: number
   }
@@ -152,9 +163,7 @@ export default function FareEstimation({
       <div className={`rounded-3xl border border-neutral-200 bg-white p-6 ${className}`}>
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-neutral-300">
-            <svg className="h-6 w-6 text-neutral-600" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2a7 7 0 017 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 017-7Zm0 9.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5Z" />
-            </svg>
+            <MapPin className="h-6 w-6 text-neutral-600" />
           </div>
           <p className="text-base text-neutral-600">Select pickup and destination to preview your trip.</p>
         </div>
@@ -182,9 +191,7 @@ export default function FareEstimation({
     return (
       <div className={`rounded-3xl border border-red-200 bg-red-50 p-6 ${className}`}>
         <div className="flex items-center gap-2 text-red-700">
-          <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.48 14.7A2 2 0 003.52 21h16.96a2 2 0 001.71-3.44l-8.48-14.7a2 2 0 00-3.42 0z"/>
-          </svg>
+          <AlertTriangle className="h-6 w-6" />
           <span className="font-medium text-lg">Unable to calculate route</span>
         </div>
         <p className="mt-1 text-base text-red-700/90">{error}</p>
@@ -225,9 +232,7 @@ export default function FareEstimation({
           <div className="relative">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 bg-white">
               {/* animated route icon */}
-              <svg className="h-6 w-6 text-neutral-900" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M8 7V4a2 2 0 012-2h4a2 2 0 012 2v3m-9 5a4 4 0 108 0 4 4 0 10-8 0z" />
-              </svg>
+              <Route className="h-6 w-6 text-neutral-900" />
             </div>
             {/* tiny pulsing locator dot */}
             <span className="absolute -right-1 -top-1 inline-block h-3 w-3 animate-ping rounded-full bg-emerald-500/70" />
@@ -250,22 +255,63 @@ export default function FareEstimation({
         <Tile
           label="Distance"
           value={distance.text}
-          icon={
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2a7 7 0 017 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 017-7Zm0 9.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5Z" />
-            </svg>
-          }
+          icon={<MapPin className="h-5 w-5" />}
         />
         <Tile
           label="Duration (traffic)"
           value={durationInTraffic.text}
-          icon={
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
+          icon={<Clock className="h-5 w-5" />}
         />
       </section>
+
+      {/* Fare Breakdown - SGD */}
+      {routeData.fareEstimate && (
+        <section className="px-6 pb-4 border-b border-neutral-200">
+          <h4 className="mb-4 text-lg font-semibold text-neutral-900">Trip Fare</h4>
+          
+          {/* Total Fare - Prominent */}
+          <div className="mb-4 text-center">
+            <div className="text-3xl font-bold text-green-600 mb-1">
+              ${routeData.fareEstimate.totalFare.toFixed(2)}
+            </div>
+            <p className="text-sm text-neutral-500">Total estimated fare</p>
+          </div>
+          
+          {/* Fare Breakdown */}
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-neutral-600">Base fare</span>
+              <span className="font-medium">${routeData.fareEstimate.baseFare.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-600">Distance ({routeData.fareEstimate.breakdown.distance} km @ ${routeData.fareEstimate.breakdown.perKmRate}/km)</span>
+              <span className="font-medium">${routeData.fareEstimate.distanceFare.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-600">Time ({routeData.fareEstimate.breakdown.duration.toFixed(1)} min @ ${routeData.fareEstimate.breakdown.perMinuteRate}/min)</span>
+              <span className="font-medium">${routeData.fareEstimate.timeFare.toFixed(2)}</span>
+            </div>
+            {routeData.fareEstimate.surgeFare > 0 && (
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Surge ({((routeData.fareEstimate.breakdown.surgeMultiplier - 1) * 100).toFixed(0)}%)</span>
+                <span className="font-medium text-orange-600">${routeData.fareEstimate.surgeFare.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-neutral-600">Platform fee ({(routeData.fareEstimate.breakdown.platformFeePercentage * 100).toFixed(0)}%)</span>
+              <span className="font-medium">${routeData.fareEstimate.platformFee.toFixed(2)}</span>
+            </div>
+            <div className="border-t border-neutral-200 pt-2 flex justify-between font-semibold">
+              <span>Total</span>
+              <span className="text-green-600">${routeData.fareEstimate.totalFare.toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <p className="mt-3 text-xs text-neutral-500 text-center">
+            * Final fare may vary based on actual route and traffic conditions
+          </p>
+        </section>
+      )}
 
       {/* Environmental Impact — lively & readable */}
       <section className="px-6 pb-6">
@@ -277,33 +323,21 @@ export default function FareEstimation({
             label="CO₂ saved"
             valueDisplay={`${co2SavedKg.toFixed(1)} kg`}
             percent={clampPct(co2SavedKg, 30)} // visual scale only
-            icon={
-              <svg className="h-5 w-5 text-neutral-900" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M7 20a7 7 0 110-14c.62 0 1.21.08 1.77.24A6 6 0 1120 13h-3a3 3 0 10-3 3H7Z" />
-              </svg>
-            }
+            icon={<Cloud className="h-5 w-5 text-neutral-900" />}
           />
           {/* Trees */}
           <ImpactMeter
             label="Trees equivalent"
             valueDisplay={`${trees}`}
             percent={clampPct(trees, 60)} // visual scale only
-            icon={
-              <svg className="h-5 w-5 text-neutral-900" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-              </svg>
-            }
+            icon={<Sparkles className="h-5 w-5 text-neutral-900" />}
           />
           {/* Fuel */}
           <ImpactMeter
             label="Fuel saved"
             valueDisplay={`${fuelL} L`}
             percent={clampPct(parseFloat(fuelL), 5)} // visual scale only
-            icon={
-              <svg className="h-5 w-5 text-neutral-900" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            }
+            icon={<Fuel className="h-5 w-5 text-neutral-900" />}
           />
         </div>
 
