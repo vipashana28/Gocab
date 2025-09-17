@@ -18,28 +18,19 @@ export default function HomePage() {
   const { status } = useSession()
   const router = useRouter()
 
-  // Redirect authenticated users (only if not already redirecting)
+  // Redirect authenticated users - simplified version
   useEffect(() => {
     if (isAuthenticated && user && status === 'authenticated') {
-      // Check if we're not already being redirected by NextAuth
-      const hasRedirectParam = window.location.search.includes('callbackUrl') || 
-                              window.location.search.includes('error')
+      // Only redirect if we're on the home page and not processing OAuth callback
+      const isHomePage = window.location.pathname === '/'
+      const hasOAuthParams = window.location.search.includes('code') || 
+                            window.location.search.includes('state') ||
+                            window.location.search.includes('error')
       
-      if (!hasRedirectParam) {
-        const timeoutId = setTimeout(() => {
-          // Check if this was a driver sign-in attempt by looking at localStorage or URL params
-          const urlParams = new URLSearchParams(window.location.search)
-          const isDriverFlow = urlParams.get('driver') === 'true' || 
-                              localStorage.getItem('pendingDriverSignIn') === 'true'
-          
-          if (isDriverFlow) {
-            localStorage.removeItem('pendingDriverSignIn') // Clean up
-            router.push('/driver')
-          } else {
-            router.push('/dashboard')
-          }
-        }, 500) // Slightly longer delay to ensure auth is fully settled
-        return () => clearTimeout(timeoutId)
+      if (isHomePage && !hasOAuthParams) {
+        console.log('Authenticated user on home page, redirecting...')
+        // Simple redirect to dashboard - NextAuth should handle driver redirects
+        router.push('/dashboard')
       }
     }
   }, [isAuthenticated, user, router, status])
@@ -138,10 +129,7 @@ export default function HomePage() {
             <div className="border-t border-neutral-200 pt-6 mb-4">
               <p className="text-neutral-600 text-sm mb-3">Are you a driver?</p>
               <button
-                onClick={() => {
-                  localStorage.setItem('pendingDriverSignIn', 'true')
-                  signIn('/driver')
-                }}
+                onClick={() => signIn('/driver')}
                 className="inline-flex items-center gap-2 text-green-700 hover:text-green-800 font-medium text-sm underline underline-offset-4 transition-colors"
               >
                 {/* Sleek car front icon */}

@@ -30,36 +30,22 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async redirect({ url, baseUrl }) {
-      // Handle redirect after sign in
       console.log('NextAuth redirect callback:', { url, baseUrl })
       
-      // If the URL contains a callbackUrl, use it
-      if (url.includes('callbackUrl=')) {
-        const urlParams = new URLSearchParams(url.split('?')[1])
-        const callbackUrl = urlParams.get('callbackUrl')
-        if (callbackUrl) {
-          // Ensure it's a relative URL for security
-          if (callbackUrl.startsWith('/')) {
-            console.log('Using callbackUrl:', callbackUrl)
-            return `${baseUrl}${callbackUrl}`
-          }
-        }
+      // Allow same origin URLs
+      if (url.startsWith(baseUrl)) {
+        console.log('Same origin URL, allowing:', url)
+        return url
       }
       
-      // Check if this is a driver sign-in by looking at the URL
-      if (url.includes('/driver') || url.includes('callbackUrl=%2Fdriver')) {
-        console.log('Driver sign-in detected, redirecting to /driver')
-        return `${baseUrl}/driver`
+      // For relative URLs, prepend baseUrl
+      if (url.startsWith('/')) {
+        console.log('Relative URL, prepending baseUrl:', `${baseUrl}${url}`)
+        return `${baseUrl}${url}`
       }
       
-      // Default redirect to dashboard for regular users
-      if (url === baseUrl || url.startsWith(baseUrl)) {
-        console.log('Default redirect to /dashboard')
-        return `${baseUrl}/dashboard`
-      }
-      
-      // For external URLs, redirect to dashboard for security
-      console.log('External URL detected, redirecting to /dashboard for security')
+      // Default fallback to dashboard
+      console.log('Fallback to dashboard')
       return `${baseUrl}/dashboard`
     },
   },
