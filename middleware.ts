@@ -62,7 +62,20 @@ export async function middleware(request: NextRequest) {
         secret: process.env.NEXTAUTH_SECRET 
       })
 
+      console.log('Middleware checking protected route:', pathname, 'Token exists:', !!token)
+
       if (!token) {
+        // Don't redirect if this is already a callback from OAuth
+        const isOAuthCallback = request.nextUrl.searchParams.has('code') || 
+                               request.nextUrl.searchParams.has('state') ||
+                               request.nextUrl.searchParams.has('error')
+        
+        if (isOAuthCallback) {
+          console.log('OAuth callback detected, allowing through middleware')
+          return NextResponse.next()
+        }
+
+        console.log('No token found, redirecting to home page')
         const url = request.nextUrl.clone()
         url.pathname = '/'
         url.searchParams.set('error', 'unauthorized')
