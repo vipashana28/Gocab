@@ -71,15 +71,7 @@ export default function DriverDashboard() {
   const [isUpdatingPhone, setIsUpdatingPhone] = useState(false)
   const [showRouteModal, setShowRouteModal] = useState(false)
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!isLoading && !isAuthenticated) {
-        router.push('/')
-      }
-    }, 100)
-    return () => clearTimeout(timer)
-  }, [isAuthenticated, isLoading, router])
+  // Let middleware handle authentication redirects
 
   // Check if phone number is required
   useEffect(() => {

@@ -530,6 +530,6 @@ Total: S$9.98
 
 *This documentation is maintained as a living document and should be updated with each major system change or feature addition.*
 
-**Last Updated**: December 2024  
+**Last Updated**: September 19 2025
 **Version**: 1.0  
 **Maintainer**: Development Team

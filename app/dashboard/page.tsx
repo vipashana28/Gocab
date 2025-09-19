@@ -173,16 +173,7 @@ export default function DashboardPage() {
 
 
   // Redirect if not authenticated (with a small delay to avoid race conditions)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!isLoading && !isAuthenticated) {
-        console.log('🚨 Not authenticated, redirecting to home')
-        router.push('/')
-      }
-    }, 100)
-    
-    return () => clearTimeout(timer)
-  }, [isAuthenticated, isLoading, router])
+  // Let middleware handle authentication redirects
 
   // WebSocket connection and real-time ride status updates
   useEffect(() => {

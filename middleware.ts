@@ -4,7 +4,7 @@ import { getToken } from 'next-auth/jwt'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Allow NextAuth routes
+  // Allow NextAuth routes and auth-related APIs
   if (pathname.startsWith('/api/auth/')) {
     return NextResponse.next()
   }

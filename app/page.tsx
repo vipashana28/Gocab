@@ -18,22 +18,7 @@ export default function HomePage() {
   const { status } = useSession()
   const router = useRouter()
 
-  // Redirect authenticated users - simplified version
-  useEffect(() => {
-    if (isAuthenticated && user && status === 'authenticated') {
-      // Only redirect if we're on the home page and not processing OAuth callback
-      const isHomePage = window.location.pathname === '/'
-      const hasOAuthParams = window.location.search.includes('code') || 
-                            window.location.search.includes('state') ||
-                            window.location.search.includes('error')
-      
-      if (isHomePage && !hasOAuthParams) {
-        console.log('Authenticated user on home page, redirecting...')
-        // Simple redirect to dashboard - NextAuth should handle driver redirects
-        router.push('/dashboard')
-      }
-    }
-  }, [isAuthenticated, user, router, status])
+  // Don't auto-redirect - let NextAuth handle all redirects
 
   if (isLoading || status === 'loading') {
     return (
