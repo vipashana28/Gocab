@@ -8,6 +8,8 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
+  // Essential for Vercel/edge deployment
+  ...(process.env.NODE_ENV === 'production' && { trustHost: true }),
   pages: {
     signOut: '/',
     error: '/',
@@ -31,21 +33,18 @@ export const authOptions: NextAuthOptions = {
     async redirect({ url, baseUrl }) {
       console.log('NextAuth redirect callback:', { url, baseUrl })
       
-      // Allow same origin URLs
-      if (url.startsWith(baseUrl)) {
-        console.log('Same origin URL, allowing:', url)
-        return url
+      // Parse the destination URL
+      const destination = url.startsWith(baseUrl) ? url : (url.startsWith('/') ? `${baseUrl}${url}` : baseUrl)
+      const path = new URL(destination).pathname
+      
+      // Never redirect back to sign-in page or root on success
+      if (path.startsWith('/api/auth/signin') || path === '/') {
+        console.log('Preventing loop - redirecting to dashboard instead')
+        return `${baseUrl}/dashboard`
       }
       
-      // For relative URLs, prepend baseUrl
-      if (url.startsWith('/')) {
-        console.log('Relative URL, prepending baseUrl:', `${baseUrl}${url}`)
-        return `${baseUrl}${url}`
-      }
-      
-      // Default fallback to dashboard
-      console.log('Fallback to dashboard')
-      return `${baseUrl}/dashboard`
+      console.log('Final redirect destination:', destination)
+      return destination
     },
   },
 }

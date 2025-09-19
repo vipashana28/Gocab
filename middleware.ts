@@ -1,20 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
+const PUBLIC_FILE = /\.(.*)$/
 
-  // Allow NextAuth routes and auth-related APIs
-  if (pathname.startsWith('/api/auth/')) {
+export async function middleware(request: NextRequest) {
+  const { pathname, searchParams } = request.nextUrl
+
+  // 1) Always allow auth endpoints, Next.js internals, static files, and OPTIONS
+  if (
+    pathname.startsWith('/api/auth/') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/static') ||
+    pathname === '/favicon.ico' ||
+    pathname.startsWith('/icons/') ||
+    PUBLIC_FILE.test(pathname) ||
+    request.method === 'OPTIONS'
+  ) {
     return NextResponse.next()
   }
 
-  // For all other API routes, require authentication
+  // 2) Protect API routes (except /api/auth/* handled above)
   if (pathname.startsWith('/api/')) {
     try {
-      const token = await getToken({ 
-        req: request, 
-        secret: process.env.NEXTAUTH_SECRET 
+      const token = await getToken({
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET,
+        secureCookie: process.env.NODE_ENV === 'production',
       })
 
       if (!token) {
@@ -35,7 +46,7 @@ export async function middleware(request: NextRequest) {
         )
       }
     } catch (error) {
-      console.error('Middleware auth error:', error)
+      console.error('Middleware API auth error:', error)
       return new Response(
         JSON.stringify({
           success: false,
@@ -52,45 +63,49 @@ export async function middleware(request: NextRequest) {
         }
       )
     }
+    return NextResponse.next()
   }
 
-  // Protected page routes
-  if (pathname.startsWith('/dashboard') || pathname.startsWith('/driver') || pathname.startsWith('/events')) {
-    try {
-      const token = await getToken({ 
-        req: request, 
-        secret: process.env.NEXTAUTH_SECRET 
-      })
+  // 3) Protect app pages
+  const isProtected =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/driver') ||
+    pathname.startsWith('/events')
 
-      console.log('Middleware checking protected route:', pathname, 'Token exists:', !!token)
+  if (!isProtected) return NextResponse.next()
 
-      if (!token) {
-        // Don't redirect if this is already a callback from OAuth
-        const isOAuthCallback = request.nextUrl.searchParams.has('code') || 
-                               request.nextUrl.searchParams.has('state') ||
-                               request.nextUrl.searchParams.has('error')
-        
-        if (isOAuthCallback) {
-          console.log('OAuth callback detected, allowing through middleware')
-          return NextResponse.next()
-        }
+  // Special: if we just came from the OAuth callback, allow one pass to avoid race condition
+  const referer = request.headers.get('referer') || ''
+  const cameFromAuthCallback = referer.includes('/api/auth/callback')
 
-        console.log('No token found, redirecting to home page')
-        const url = request.nextUrl.clone()
-        url.pathname = '/'
-        url.searchParams.set('error', 'unauthorized')
-        return NextResponse.redirect(url)
-      }
-    } catch (error) {
-      console.error('Page auth error:', error)
-      const url = request.nextUrl.clone()
-      url.pathname = '/'
-      url.searchParams.set('error', 'auth_error')
-      return NextResponse.redirect(url)
+  try {
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+      secureCookie: process.env.NODE_ENV === 'production',
+    })
+
+    console.log('Middleware checking protected route:', pathname, 'Token exists:', !!token, 'Referer:', referer)
+
+    if (token || cameFromAuthCallback) {
+      // Let the page render; the session will be available on the next request if it's a race
+      return NextResponse.next()
     }
-  }
 
-  return NextResponse.next()
+    // Don't redirect back to home to avoid loops - use error parameter instead
+    console.log('No token found, redirecting to home page')
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    url.searchParams.set('from', pathname)
+    url.searchParams.set('error', 'unauthorized')
+    return NextResponse.redirect(url)
+  } catch (error) {
+    console.error('Page auth error:', error)
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    url.searchParams.set('error', 'auth_error')
+    return NextResponse.redirect(url)
+  }
 }
 
 export const config = {
